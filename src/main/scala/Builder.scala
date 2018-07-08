@@ -28,7 +28,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     require( dstdir.canWrite, s"destination directory is unwritable: $dstdir" )
   }
 
-  val layoutdir = srcnorm resolve "_layout" toFile
+  val layoutdir = srcnorm resolve "_layouts" toFile
   def backslashConfig =
     Map(
       "today" -> "MMMM d, y",
@@ -38,9 +38,9 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   val backslashParser = new Parser( Command.standard )
   val backslashRenderer = new Renderer( backslashParser, backslashConfig )
 
-  require( layoutdir.exists, s"'layout directory does not exist: $layoutdir" )
+  require( layoutdir.exists, s"'_layouts directory does not exist: $layoutdir" )
   require( layoutdir.isDirectory, s"not a directory: $layoutdir" )
-  require( layoutdir.canRead, s"layout directory is unreadable: $layoutdir" )
+  require( layoutdir.canRead, s"_layouts directory is unreadable: $layoutdir" )
 
   verbosely( s"processing layouts: $layoutdir" )
 
