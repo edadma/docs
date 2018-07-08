@@ -1,7 +1,9 @@
 //@
 package xyz.hyperreal.docs
 
-import java.nio.file.Path
+import java.io.FileWriter
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Path, Paths}
 
 import xyz.hyperreal.yaml.read
 import xyz.hyperreal.markdown.Markdown
@@ -20,9 +22,11 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   val dstnorm = dst.normalize
   val dstdir = dstnorm.toFile
 
-  dstdir.mkdirs
-  require( dstdir.isDirectory, s"destination path is not a directory: $dstdir" )
-  require( dstdir.canWrite, s"destination directory is unwritable: $dstdir" )
+  if (!dryrun) {
+    dstdir.mkdirs
+    require( dstdir.isDirectory, s"destination path is not a directory: $dstdir" )
+    require( dstdir.canWrite, s"destination directory is unwritable: $dstdir" )
+  }
 
   val layoutdir = srcnorm resolve "_layout" toFile
   val backslashParser = new Parser( Command.standard )
@@ -58,12 +62,20 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
       println( msg )
 
   def processDirectory( parent: Path, sub: String ): Unit = {
-    val dir = parent resolve sub
+    val srcdir = parent resolve sub
+    val dstdir = srcdir relativize srcnorm resolve dstnorm
+    val dstdirfile = dstdir toFile
 
-    verbosely( s"processing directory: $dir" )
+    verbosely( s"processing directory: $srcdir" )
 
-    val dirfile = dir.toFile
-    val contents = dirfile.listFiles.toList filterNot (_.getName startsWith "_")
+    if (!dryrun) {
+      dstdirfile.mkdirs
+      require( dstdirfile.exists && dstdirfile.isDirectory, s"failed to create destination directory: $dstdirfile" )
+      require( dstdirfile.canWrite, s"destination directory is unwritable: $dstdirfile" )
+    }
+
+    val srcdirfile = srcdir.toFile
+    val contents = srcdirfile.listFiles.toList filterNot (_.getName startsWith "_")
     val subdirectories = contents filter (d => d.isDirectory && d.canRead)
     val files = contents filter (f => f.getName.endsWith(".md") && f.isFile && f.canRead)
 
@@ -83,16 +95,15 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
             (Map(), s)
         }
 
-        println( front, src )
         val (md, headings) = Markdown.withHeadings( src )
 
         if (!dryrun) {
-
+          Files.write( dstdir resolve s"${f.getName}.html", md.getBytes(StandardCharsets.UTF_8) )
         }
       }
 
     for (s <- subdirectories)
-      processDirectory( dir, s.getName )
+      processDirectory( srcdir, s.getName )
   }
 
 }
