@@ -7,7 +7,7 @@ import java.nio.file.{Files, Path, Paths}
 
 import xyz.hyperreal.yaml.read
 import xyz.hyperreal.markdown.Markdown
-import xyz.hyperreal.backslash.{Command, Parser}
+import xyz.hyperreal.backslash.{Command, Parser, Renderer}
 
 
 class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean = false ) {
@@ -29,7 +29,14 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   }
 
   val layoutdir = srcnorm resolve "_layout" toFile
+  def backslashConfig =
+    Map(
+      "today" -> "MMMM d, y",
+      "include" -> ".",
+      "rounding" -> "HALF_EVEN"
+    )
   val backslashParser = new Parser( Command.standard )
+  val backslashRenderer = new Renderer( backslashParser, backslashConfig )
 
   require( layoutdir.exists, s"'layout directory does not exist: $layoutdir" )
   require( layoutdir.isDirectory, s"not a directory: $layoutdir" )
@@ -85,20 +92,51 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
       for (f <- files) {
         verbosely( s"processing markdown file: $f" )
 
+        val filename = withoutExtension( f.getName )
         val s = io.Source.fromFile( f ).mkString
         val (front, src) = {
           val lines = s.lines
 
           if (lines.hasNext && lines.next == "---") {
-            (read( lines takeWhile( _ != "---" ) mkString "\n" ).head, lines mkString "\n")
+            (read( lines takeWhile( _ != "---" ) mkString "\n" ).head match {
+              case m: Map[_, _] => m.asInstanceOf[Map[String, Any]]
+              case _ => sys.error( s"expected an object as front matter: $f" )
+            }, lines mkString "\n")
           } else
-            (Map(), s)
+            (Map[String, Any](), s)
         }
 
         val (md, headings) = Markdown.withHeadings( src )
+        val res = {
+          val layout =
+            front get "layout" match {
+              case None =>
+                if (filename == "index")
+                  layouts get "index" match {
+                    case None =>
+                      layouts get "page" match {
+                        case None => sys.error( s"neither 'index' nor 'page' layout found for laying out $f" )
+                        case Some( l ) => l
+                      }
+                    case Some( l ) => l
+                  }
+                else
+                  layouts get "page" match {
+                    case None => sys.error( s"'page' layout not found for laying out $f" )
+                    case Some( l ) => l
+                  }
+              case Some( l ) =>
+                layouts get l.toString match {
+                  case None => sys.error( s"layout not found: $l in file $f" )
+                  case Some( ast ) => ast
+                }
+            }
+
+          backslashRenderer.capture( layout, Map("contents" -> md) )
+        }
 
         if (!dryrun) {
-          Files.write( dstdir resolve s"${f.getName}.html", md.getBytes(StandardCharsets.UTF_8) )
+          Files.write( dstdir resolve s"$filename.html", res.getBytes(StandardCharsets.UTF_8) )
         }
       }
 
