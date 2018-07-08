@@ -3,6 +3,7 @@ package xyz.hyperreal.docs
 
 import java.nio.file.Path
 
+import xyz.hyperreal.yaml.read
 import xyz.hyperreal.markdown.Markdown
 import xyz.hyperreal.backslash.{Command, Parser}
 
@@ -73,8 +74,17 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
         verbosely( s"processing markdown file: $f" )
 
         val s = io.Source.fromFile( f ).mkString
+        val (front, src) = {
+          val lines = s.lines
 
-        val (md, headings) = Markdown.withHeadings( s )
+          if (lines.hasNext && lines.next == "---") {
+            (read( lines takeWhile( _ != "---" ) mkString "\n" ), lines mkString "\n")
+          } else
+            (Map(), s)
+        }
+
+        println( front, src )
+        val (md, headings) = Markdown.withHeadings( src )
 
         if (!dryrun) {
 
