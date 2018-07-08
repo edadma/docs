@@ -78,7 +78,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
           val lines = s.lines
 
           if (lines.hasNext && lines.next == "---") {
-            (read( lines takeWhile( _ != "---" ) mkString "\n" ), lines mkString "\n")
+            (read( lines takeWhile( _ != "---" ) mkString "\n" ).head, lines mkString "\n")
           } else
             (Map(), s)
         }
