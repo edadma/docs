@@ -21,15 +21,8 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
   val dstnorm = dst.normalize
   val dstdir = dstnorm.toFile
-
-  if (!dryrun) {
-    dstdir.mkdirs
-    require( dstdir.isDirectory, s"destination path is not a directory: $dstdir" )
-    require( dstdir.canWrite, s"destination directory is unwritable: $dstdir" )
-  }
-
   val layoutdir = srcnorm resolve "_layouts" toFile
-  def backslashConfig =
+  val backslashConfig =
     Map(
       "today" -> "MMMM d, y",
       "include" -> ".",
@@ -56,7 +49,31 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     ls toMap
   }
 
-  processDirectory( srcnorm, "" )
+  def build: Unit = {
+    if (!dryrun) {
+      dstdir.mkdirs
+      require( dstdir.isDirectory, s"destination path is not a directory: $dstdir" )
+      require( dstdir.canWrite, s"destination directory is unwritable: $dstdir" )
+    }
+
+    processDirectory( srcnorm, "" )
+  }
+
+  def clean: Unit = {
+    def clean( dir: Path ): Unit = {
+      for (f <- dir.toFile.listFiles) {
+        if (f.isDirectory)
+          clean( dir resolve f.getName )
+        else
+          f.delete
+      }
+
+      Files delete dir
+    }
+
+    if (dstdir.exists)
+      clean( dstnorm )
+  }
 
   def withoutExtension( s: String ) =
     s lastIndexOf '.' match {
