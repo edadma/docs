@@ -4,7 +4,7 @@ package xyz.hyperreal.docs
 import java.nio.file.Path
 
 import xyz.hyperreal.markdown.Markdown
-import xyz.hyperreal.backslash.Parser
+import xyz.hyperreal.backslash.{Command, Parser}
 
 
 class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean = false ) {
@@ -24,6 +24,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   require( dstdir.canWrite, s"destination directory is unwritable: $dstdir" )
 
   val layoutdir = srcnorm resolve "_layout" toFile
+  val backslashParser = new Parser( Command.standard )
 
   require( layoutdir.exists, s"'layout directory does not exist: $layoutdir" )
   require( layoutdir.isDirectory, s"not a directory: $layoutdir" )
@@ -32,14 +33,16 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   verbosely( s"processing layouts: $layoutdir" )
 
   val layouts = {
-    for (l <- layoutdir.listFiles filter (f => f.isFile && f.canRead && f.getName.endsWith(".backslash"))) {
-      verbosely( s"processing layout: $l" )
+    val ls =
+      for (l <- layoutdir.listFiles filter (f => f.isFile && f.canRead && f.getName.endsWith(".backslash")))
+        yield {
+          verbosely( s"processing layout: $l" )
 
-//      val layout = Parser
-    }
+          (withoutExtension(l.getName), backslashParser.parse( io.Source.fromFile(l) ))
+        }
+
+    ls toMap
   }
-
-  //      .map( f => (withoutExtension(f.getName), {)io.Source.fromFile(f)) )
 
   processDirectory( srcnorm, "" )
 
