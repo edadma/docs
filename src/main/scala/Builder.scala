@@ -1,9 +1,9 @@
 //@
 package xyz.hyperreal.docs
 
-import java.io.{File, FileWriter}
+import java.io.File
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path, Paths}
+import java.nio.file.{Files, Path}
 
 import xyz.hyperreal.yaml.read
 import xyz.hyperreal.markdown.{Heading, Markdown}
@@ -59,18 +59,22 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   }
 
   def writePhase: Unit = {
-      dstdir.mkdirs
-      require( dstdir.isDirectory, s"destination path is not a directory: $dstdir" )
-      require( dstdir.canWrite, s"destination directory is unwritable: $dstdir" )
 
-//    val dstdir = srcdir relativize srcnorm resolve dstnorm
-//    val dstdirfile = dstdir toFile
-//
-//    if (!dryrun) {
-//      dstdirfile.mkdirs
-//      require( dstdirfile.exists && dstdirfile.isDirectory, s"failed to create destination directory: $dstdirfile" )
-//      require( dstdirfile.canWrite, s"destination directory is unwritable: $dstdirfile" )
-//    }
+    dstdir.mkdirs
+    require( dstdir.isDirectory, s"destination path is not a directory: $dstdir" )
+    require( dstdir.canWrite, s"destination directory is unwritable: $dstdir" )
+
+    for (SourceFile( dir, file, front, markdown, headings, layout ) <- srcs) {
+      val dstdir = dir relativize srcnorm resolve dstnorm
+      val dstdirfile = dstdir toFile
+      val filename = withoutExtension( file.getName )
+      val page = backslashRenderer.capture( layout, Map("contents" -> markdown) )
+
+      dstdirfile.mkdirs
+      require( dstdirfile.exists && dstdirfile.isDirectory, s"failed to create destination directory: $dstdirfile" )
+      require( dstdirfile.canWrite, s"destination directory is unwritable: $dstdirfile" )
+      Files.write( dstdir resolve s"$filename.html", page.getBytes(StandardCharsets.UTF_8) )
+    }
 
   }
 
@@ -169,12 +173,5 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     for (s <- subdirectories)
       processDirectory( srcdir, s.getName )
   }
-
-//              backslashRenderer.capture( layout, Map("contents" -> md) )
-//        }
-//
-//        if (!dryrun) {
-//          Files.write( dstdir resolve s"$filename.html", res.getBytes(StandardCharsets.UTF_8) )
-//        }
 
 }
