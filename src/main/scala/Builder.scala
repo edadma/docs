@@ -1,9 +1,8 @@
 //@
 package xyz.hyperreal.docs
 
-import java.io.File
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path}
+import java.nio.file.{Files, Path, Paths}
 
 import xyz.hyperreal.yaml.read
 import xyz.hyperreal.markdown.{Heading, Markdown}
@@ -28,7 +27,6 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   require( Files isReadable srcnorm, s"source directory is unreadable: $srcnorm" )
 
   val dstnorm = dst.normalize
-  val dstdir = dstnorm.toFile
   val layoutdir = srcnorm resolve "_layouts"
   val backslashConfig =
     Map(
@@ -57,30 +55,28 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     ls toMap
   }
 
-  case class MdFile( dir: Path, file: File, vars: Map[String, Any], md: String, headings: List[Heading], layout: AST )
+  case class MdFile( dir: Path, filename: String, vars: Map[String, Any], md: String, headings: List[Heading], layout: AST )
 
   val mdFiles = new ArrayBuffer[MdFile]
   val resFiles = new ArrayBuffer[Path]
 
   def readPhase: Unit = {
-    processDirectory( srcnorm, "" )
+    processDirectory( srcnorm, Paths get "" )
   }
 
   def writePhase: Unit = {
 
-    dstdir.mkdirs
-    require( dstdir.isDirectory, s"destination path is not a directory: $dstdir" )
-    require( dstdir.canWrite, s"destination directory is unwritable: $dstdir" )
+    Files createDirectories dstnorm
+    require( Files isDirectory dstnorm, s"destination path is not a directory: $dstnorm" )
+    require( Files isWritable dstnorm, s"destination directory is unwritable: $dstnorm" )
 
-    for (MdFile( dir, file, vars, markdown, headings, layout ) <- mdFiles) {
+    for (MdFile( dir, filename, vars, markdown, headings, layout ) <- mdFiles) {
       val dstdir = dstnorm resolve (srcnorm relativize dir)
-      val dstdirfile = dstdir toFile
-      val filename = withoutExtension( file.getName )
       val page = backslashRenderer.capture( layout, Map("contents" -> markdown, "page" -> vars) )
 
-      dstdirfile.mkdirs
-      require( dstdirfile.exists && dstdirfile.isDirectory, s"failed to create destination directory: $dstdirfile" )
-      require( dstdirfile.canWrite, s"destination directory is unwritable: $dstdirfile" )
+      Files createDirectories dstdir
+      require( Files.exists(dstdir) && Files.isDirectory(dstdir), s"failed to create destination directory: $dstdir" )
+      require( Files isWritable dstdir, s"destination directory is unwritable: $dstdir" )
 
       val pagepath = dstdir resolve s"$filename.html"
 
@@ -120,7 +116,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
       Files delete dir
     }
 
-    if (dstdir.exists)
+    if (Files exists dstnorm)
       clean( dstnorm )
   }
 
@@ -134,24 +130,24 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     if (dryrun || verbose)
       println( msg )
 
-  def processDirectory( parent: Path, sub: String ): Unit = {
+  def processDirectory( parent: Path, sub: Path ): Unit = {
     val srcdir = parent resolve sub
 
     verbosely( s"processing directory: $srcdir" )
 
-    val srcdirfile = srcdir.toFile
-    val contents = srcdirfile.listFiles.toList filterNot (_.getName startsWith "_")
-    val subdirectories = contents filter (d => d.isDirectory && d.canRead)
-    val mds = contents filter (f => f.getName.endsWith(".md") && f.isFile && f.canRead)
+    val contents = (Files list srcdir).iterator.asScala.toList filterNot (_.getFileName.toString startsWith "_")
+    val subdirectories = contents filter (d => Files.isDirectory(d) && Files.isReadable(d))
+    val files = contents filter (f => Files.isRegularFile(f) && Files.isReadable(f))
+    val mds = files filter (f => f.getFileName.toString.endsWith(".md"))
 
-    resFiles ++= contents filter (f => !f.getName.endsWith(".md") && f.isFile && f.canRead) map (_.toPath)
+    resFiles ++= files filter (f => !f.getFileName.toString.endsWith(".md"))
 
     if (mds nonEmpty)
       for (f <- mds) {
         verbosely( s"reading markdown file: $f" )
 
-        val filename = withoutExtension( f.getName )
-        val s = io.Source.fromFile( f ).mkString
+        val filename = withoutExtension( f.getFileName.toString )
+        val s = io.Source.fromFile( f.toFile ).mkString
         val (top, src) = {
           val lines = s.lines
 
@@ -191,11 +187,11 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
         val vars = top -- Builder.predefinedTopMatterKeys
 
-        mdFiles += MdFile( srcdir, f, vars, md, headings, layout )
+        mdFiles += MdFile( srcdir, filename, vars, md, headings, layout )
       }
 
     for (s <- subdirectories)
-      processDirectory( srcdir, s.getName )
+      processDirectory( srcdir, s.getFileName )
   }
 
 }
