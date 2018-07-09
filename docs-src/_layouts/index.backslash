@@ -1,6 +1,8 @@
 <html>
     <head>
         <title>\page.title</title>
+        <link rel="stylesheet" type="text/css" href="css/friendly.css">
+        <!-- <link rel="stylesheet" type="text/css" href="snippet.css"> -->
     </head>
     <body>
         \contents
