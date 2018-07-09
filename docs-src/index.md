@@ -1,5 +1,5 @@
 ---
-front: 123
+top: 123
 matter: 456
 ---
 This is a test

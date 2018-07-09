@@ -12,6 +12,12 @@ import xyz.hyperreal.backslash.{AST, Command, Parser, Renderer}
 import scala.collection.mutable.ArrayBuffer
 
 
+object Builder {
+
+  val predefinedTopMatterKeys = Set( "layout" )
+
+}
+
 class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean = false ) {
 
   val srcnorm = src.normalize
@@ -50,7 +56,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     ls toMap
   }
 
-  case class SourceFile( dir: Path, file: File, front: Map[String, Any], markdown: String, headings: List[Heading], layout: AST )
+  case class SourceFile( dir: Path, file: File, vars: Map[String, Any], markdown: String, headings: List[Heading], layout: AST )
 
   val srcs = new ArrayBuffer[SourceFile]
 
@@ -64,11 +70,11 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     require( dstdir.isDirectory, s"destination path is not a directory: $dstdir" )
     require( dstdir.canWrite, s"destination directory is unwritable: $dstdir" )
 
-    for (SourceFile( dir, file, front, markdown, headings, layout ) <- srcs) {
+    for (SourceFile( dir, file, vars, markdown, headings, layout ) <- srcs) {
       val dstdir = dir relativize srcnorm resolve dstnorm
       val dstdirfile = dstdir toFile
       val filename = withoutExtension( file.getName )
-      val page = backslashRenderer.capture( layout, Map("contents" -> markdown) )
+      val page = backslashRenderer.capture( layout, Map("contents" -> markdown) ++ vars )
 
       dstdirfile.mkdirs
       require( dstdirfile.exists && dstdirfile.isDirectory, s"failed to create destination directory: $dstdirfile" )
@@ -130,13 +136,13 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
         val filename = withoutExtension( f.getName )
         val s = io.Source.fromFile( f ).mkString
-        val (front, src) = {
+        val (top, src) = {
           val lines = s.lines
 
           if (lines.hasNext && lines.next == "---") {
             (read( lines takeWhile( _ != "---" ) mkString "\n" ).head match {
               case m: Map[_, _] => m.asInstanceOf[Map[String, Any]]
-              case _ => sys.error( s"expected an object as front matter: $f" )
+              case _ => sys.error( s"expected an object as top matter: $f" )
             }, lines mkString "\n")
           } else
             (Map[String, Any](), s)
@@ -144,7 +150,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
         val (md, headings) = Markdown.withHeadings( src )
         val layout =
-          front get "layout" match {
+          top get "layout" match {
             case None =>
               if (filename == "index")
                 layouts get "index" match {
@@ -167,7 +173,9 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
               }
           }
 
-        srcs += SourceFile( srcdir, f, front, md, headings, layout )
+        val vars = top -- Builder.predefinedTopMatterKeys
+
+        srcs += SourceFile( srcdir, f, vars, md, headings, layout )
       }
 
     for (s <- subdirectories)
