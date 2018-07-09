@@ -72,7 +72,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     require( dstdir.canWrite, s"destination directory is unwritable: $dstdir" )
 
     for (MdFile( dir, file, vars, markdown, headings, layout ) <- mdFiles) {
-      val dstdir = dir relativize srcnorm resolve dstnorm
+      val dstdir = dstnorm resolve (srcnorm relativize dir)
       val dstdirfile = dstdir toFile
       val filename = withoutExtension( file.getName )
       val page = backslashRenderer.capture( layout, Map("contents" -> markdown) ++ vars )
@@ -88,12 +88,11 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     }
 
     for (p <- resFiles) {
-      val dir = p.getParent
-      val dstdir = dir relativize srcnorm resolve dstnorm
+      val dstpath = dstnorm resolve (srcnorm relativize p)
       val filename = p.getFileName
-      val dstpath = dstdir resolve filename
+      val dstdir = dstpath.getParent
 
-      verbosely( s"copying asset '$filename' from $dir to $dstdir" )
+      verbosely( s"copying asset '$filename' from ${p.getParent} to $dstdir" )
       Files createDirectories dstdir
       Files.copy( p, dstpath )
     }
@@ -146,9 +145,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
     resFiles ++= contents filter (f => !f.getName.endsWith(".md") && f.isFile && f.canRead) map (_.toPath)
 
-    if (mds isEmpty)
-      verbosely( "no markdown files" )
-    else
+    if (mds nonEmpty)
       for (f <- mds) {
         verbosely( s"reading markdown file: $f" )
 
