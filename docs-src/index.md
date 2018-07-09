@@ -1,6 +1,5 @@
 ---
-top: 123
-matter: 456
+title: "The Title"
 ---
 This is a nice image
 

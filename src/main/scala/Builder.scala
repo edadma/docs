@@ -3,13 +3,14 @@ package xyz.hyperreal.docs
 
 import java.io.File
 import java.nio.charset.StandardCharsets
-import java.nio.file.{CopyOption, Files, Path}
+import java.nio.file.{Files, Path}
 
 import xyz.hyperreal.yaml.read
 import xyz.hyperreal.markdown.{Heading, Markdown}
 import xyz.hyperreal.backslash.{AST, Command, Parser, Renderer}
 
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.JavaConverters._
 
 
 object Builder {
@@ -21,15 +22,14 @@ object Builder {
 class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean = false ) {
 
   val srcnorm = src.normalize
-  val srcdir = srcnorm.toFile
 
-  require( srcdir.exists, s"source does not exist: $srcdir" )
-  require( srcdir.isDirectory, s"source path is not a directory: $srcdir" )
-  require( srcdir.canRead, s"source directory is unreadable: $srcdir" )
+  require( Files exists srcnorm, s"source does not exist: $srcnorm" )
+  require( Files isDirectory srcnorm, s"source path is not a directory: $srcnorm" )
+  require( Files isReadable srcnorm, s"source directory is unreadable: $srcnorm" )
 
   val dstnorm = dst.normalize
   val dstdir = dstnorm.toFile
-  val layoutdir = srcnorm resolve "_layouts" toFile
+  val layoutdir = srcnorm resolve "_layouts"
   val backslashConfig =
     Map(
       "today" -> "MMMM d, y",
@@ -39,18 +39,19 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   val backslashParser = new Parser( Command.standard )
   val backslashRenderer = new Renderer( backslashParser, backslashConfig )
 
-  require( layoutdir.exists, s"'_layouts directory does not exist: $layoutdir" )
-  require( layoutdir.isDirectory, s"not a directory: $layoutdir" )
-  require( layoutdir.canRead, s"_layouts directory is unreadable: $layoutdir" )
+  require( Files exists layoutdir, s"'_layouts directory does not exist: $layoutdir" )
+  require( Files isDirectory layoutdir, s"not a directory: $layoutdir" )
+  require( Files isReadable layoutdir, s"_layouts directory is unreadable: $layoutdir" )
   verbosely( s"processing layouts: $layoutdir" )
 
   val layouts = {
+    val templates = (Files list layoutdir).iterator.asScala.toList.filter (p => Files.isRegularFile(p) && Files.isReadable(p) && p.getFileName.toString.endsWith(".backslash"))
     val ls =
-      for (l <- layoutdir.listFiles filter (f => f.isFile && f.canRead && f.getName.endsWith(".backslash")))
+      for (l <- templates)
         yield {
           verbosely( s"reading layout: $l" )
 
-          (withoutExtension(l.getName), backslashParser.parse( io.Source.fromFile(l) ))
+          (withoutExtension(l.getFileName.toString), backslashParser.parse( io.Source.fromFile(l.toFile) ))
         }
 
     ls toMap
@@ -75,7 +76,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
       val dstdir = dstnorm resolve (srcnorm relativize dir)
       val dstdirfile = dstdir toFile
       val filename = withoutExtension( file.getName )
-      val page = backslashRenderer.capture( layout, Map("contents" -> markdown) ++ vars )
+      val page = backslashRenderer.capture( layout, Map("contents" -> markdown, "page" -> vars) )
 
       dstdirfile.mkdirs
       require( dstdirfile.exists && dstdirfile.isDirectory, s"failed to create destination directory: $dstdirfile" )
@@ -109,11 +110,11 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
   def clean: Unit = {
     def clean( dir: Path ): Unit = {
-      for (f <- dir.toFile.listFiles) {
-        if (f.isDirectory)
-          clean( dir resolve f.getName )
+      for (f <- (Files list dir).iterator.asScala) {
+        if (Files isDirectory f)
+          clean( dir resolve f.getFileName )
         else
-          f.delete
+          Files delete f
       }
 
       Files delete dir
