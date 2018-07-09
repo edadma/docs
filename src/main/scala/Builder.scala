@@ -101,6 +101,10 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     val srcdirfile = srcdir.toFile
     val contents = srcdirfile.listFiles.toList filterNot (_.getName startsWith "_")
     val subdirectories = contents filter (d => d.isDirectory && d.canRead)
+
+    for (s <- subdirectories)
+      processDirectory( srcdir, s.getName )
+
     val files = contents filter (f => f.getName.endsWith(".md") && f.isFile && f.canRead)
 
     if (files isEmpty)
@@ -156,9 +160,6 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
           Files.write( dstdir resolve s"$filename.html", res.getBytes(StandardCharsets.UTF_8) )
         }
       }
-
-    for (s <- subdirectories)
-      processDirectory( srcdir, s.getName )
   }
 
 }
