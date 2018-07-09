@@ -3,7 +3,7 @@ package xyz.hyperreal.docs
 
 import java.io.File
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path}
+import java.nio.file.{CopyOption, Files, Path}
 
 import xyz.hyperreal.yaml.read
 import xyz.hyperreal.markdown.{Heading, Markdown}
@@ -56,9 +56,10 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     ls toMap
   }
 
-  case class SourceFile( dir: Path, file: File, vars: Map[String, Any], markdown: String, headings: List[Heading], layout: AST )
+  case class MdFile( dir: Path, file: File, vars: Map[String, Any], md: String, headings: List[Heading], layout: AST )
 
-  val srcs = new ArrayBuffer[SourceFile]
+  val mdFiles = new ArrayBuffer[MdFile]
+  val resFiles = new ArrayBuffer[Path]
 
   def readPhase: Unit = {
     processDirectory( srcnorm, "" )
@@ -70,7 +71,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     require( dstdir.isDirectory, s"destination path is not a directory: $dstdir" )
     require( dstdir.canWrite, s"destination directory is unwritable: $dstdir" )
 
-    for (SourceFile( dir, file, vars, markdown, headings, layout ) <- srcs) {
+    for (MdFile( dir, file, vars, markdown, headings, layout ) <- mdFiles) {
       val dstdir = dir relativize srcnorm resolve dstnorm
       val dstdirfile = dstdir toFile
       val filename = withoutExtension( file.getName )
@@ -79,7 +80,22 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
       dstdirfile.mkdirs
       require( dstdirfile.exists && dstdirfile.isDirectory, s"failed to create destination directory: $dstdirfile" )
       require( dstdirfile.canWrite, s"destination directory is unwritable: $dstdirfile" )
-      Files.write( dstdir resolve s"$filename.html", page.getBytes(StandardCharsets.UTF_8) )
+
+      val pagepath = dstdir resolve s"$filename.html"
+
+      verbosely( s"writting page: $pagepath" )
+      Files.write( pagepath, page.getBytes(StandardCharsets.UTF_8) )
+    }
+
+    for (p <- resFiles) {
+      val dir = p.getParent
+      val dstdir = dir relativize srcnorm resolve dstnorm
+      val filename = p.getFileName
+      val dstpath = dstdir resolve filename
+
+      verbosely( s"copying asset '$filename' from $dir to $dstdir" )
+      Files createDirectories dstdir
+      Files.copy( p, dstpath )
     }
 
   }
@@ -126,12 +142,14 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     val srcdirfile = srcdir.toFile
     val contents = srcdirfile.listFiles.toList filterNot (_.getName startsWith "_")
     val subdirectories = contents filter (d => d.isDirectory && d.canRead)
-    val files = contents filter (f => f.getName.endsWith(".md") && f.isFile && f.canRead)
+    val mds = contents filter (f => f.getName.endsWith(".md") && f.isFile && f.canRead)
 
-    if (files isEmpty)
+    resFiles ++= contents filter (f => !f.getName.endsWith(".md") && f.isFile && f.canRead) map (_.toPath)
+
+    if (mds isEmpty)
       verbosely( "no markdown files" )
     else
-      for (f <- files) {
+      for (f <- mds) {
         verbosely( s"reading markdown file: $f" )
 
         val filename = withoutExtension( f.getName )
@@ -175,7 +193,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
         val vars = top -- Builder.predefinedTopMatterKeys
 
-        srcs += SourceFile( srcdir, f, vars, md, headings, layout )
+        mdFiles += MdFile( srcdir, f, vars, md, headings, layout )
       }
 
     for (s <- subdirectories)
