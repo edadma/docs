@@ -1,13 +1,15 @@
 //@
 package xyz.hyperreal.docs
 
-import java.io.FileWriter
+import java.io.{File, FileWriter}
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
 
 import xyz.hyperreal.yaml.read
-import xyz.hyperreal.markdown.Markdown
-import xyz.hyperreal.backslash.{Command, Parser, Renderer}
+import xyz.hyperreal.markdown.{Heading, Markdown}
+import xyz.hyperreal.backslash.{AST, Command, Parser, Renderer}
+
+import scala.collection.mutable.ArrayBuffer
 
 
 class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean = false ) {
@@ -34,14 +36,13 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   require( layoutdir.exists, s"'_layouts directory does not exist: $layoutdir" )
   require( layoutdir.isDirectory, s"not a directory: $layoutdir" )
   require( layoutdir.canRead, s"_layouts directory is unreadable: $layoutdir" )
-
   verbosely( s"processing layouts: $layoutdir" )
 
   val layouts = {
     val ls =
       for (l <- layoutdir.listFiles filter (f => f.isFile && f.canRead && f.getName.endsWith(".backslash")))
         yield {
-          verbosely( s"processing layout: $l" )
+          verbosely( s"reading layout: $l" )
 
           (withoutExtension(l.getName), backslashParser.parse( io.Source.fromFile(l) ))
         }
@@ -49,14 +50,36 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     ls toMap
   }
 
-  def build: Unit = {
-    if (!dryrun) {
+  case class SourceFile( dir: Path, file: File, front: Map[String, Any], markdown: String, headings: List[Heading], layout: AST )
+
+  val srcs = new ArrayBuffer[SourceFile]
+
+  def readPhase: Unit = {
+    processDirectory( srcnorm, "" )
+  }
+
+  def writePhase: Unit = {
       dstdir.mkdirs
       require( dstdir.isDirectory, s"destination path is not a directory: $dstdir" )
       require( dstdir.canWrite, s"destination directory is unwritable: $dstdir" )
-    }
 
-    processDirectory( srcnorm, "" )
+//    val dstdir = srcdir relativize srcnorm resolve dstnorm
+//    val dstdirfile = dstdir toFile
+//
+//    if (!dryrun) {
+//      dstdirfile.mkdirs
+//      require( dstdirfile.exists && dstdirfile.isDirectory, s"failed to create destination directory: $dstdirfile" )
+//      require( dstdirfile.canWrite, s"destination directory is unwritable: $dstdirfile" )
+//    }
+
+  }
+
+  def build: Unit = {
+    readPhase
+
+    if (!dryrun) {
+      writePhase
+    }
   }
 
   def clean: Unit = {
@@ -87,31 +110,19 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
   def processDirectory( parent: Path, sub: String ): Unit = {
     val srcdir = parent resolve sub
-    val dstdir = srcdir relativize srcnorm resolve dstnorm
-    val dstdirfile = dstdir toFile
 
     verbosely( s"processing directory: $srcdir" )
-
-    if (!dryrun) {
-      dstdirfile.mkdirs
-      require( dstdirfile.exists && dstdirfile.isDirectory, s"failed to create destination directory: $dstdirfile" )
-      require( dstdirfile.canWrite, s"destination directory is unwritable: $dstdirfile" )
-    }
 
     val srcdirfile = srcdir.toFile
     val contents = srcdirfile.listFiles.toList filterNot (_.getName startsWith "_")
     val subdirectories = contents filter (d => d.isDirectory && d.canRead)
-
-    for (s <- subdirectories)
-      processDirectory( srcdir, s.getName )
-
     val files = contents filter (f => f.getName.endsWith(".md") && f.isFile && f.canRead)
 
     if (files isEmpty)
       verbosely( "no markdown files" )
     else
       for (f <- files) {
-        verbosely( s"processing markdown file: $f" )
+        verbosely( s"reading markdown file: $f" )
 
         val filename = withoutExtension( f.getName )
         val s = io.Source.fromFile( f ).mkString
@@ -128,38 +139,42 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
         }
 
         val (md, headings) = Markdown.withHeadings( src )
-        val res = {
-          val layout =
-            front get "layout" match {
-              case None =>
-                if (filename == "index")
-                  layouts get "index" match {
-                    case None =>
-                      layouts get "page" match {
-                        case None => sys.error( s"neither 'index' nor 'page' layout found for laying out $f" )
-                        case Some( l ) => l
-                      }
-                    case Some( l ) => l
-                  }
-                else
-                  layouts get "page" match {
-                    case None => sys.error( s"'page' layout not found for laying out $f" )
-                    case Some( l ) => l
-                  }
-              case Some( l ) =>
-                layouts get l.toString match {
-                  case None => sys.error( s"layout not found: $l in file $f" )
-                  case Some( ast ) => ast
+        val layout =
+          front get "layout" match {
+            case None =>
+              if (filename == "index")
+                layouts get "index" match {
+                  case None =>
+                    layouts get "page" match {
+                      case None => sys.error( s"neither 'index' nor 'page' layout found for laying out $f" )
+                      case Some( l ) => l
+                    }
+                  case Some( l ) => l
                 }
-            }
+              else
+                layouts get "page" match {
+                  case None => sys.error( s"'page' layout not found for laying out $f" )
+                  case Some( l ) => l
+                }
+            case Some( l ) =>
+              layouts get l.toString match {
+                case None => sys.error( s"layout not found: $l in file $f" )
+                case Some( ast ) => ast
+              }
+          }
 
-          backslashRenderer.capture( layout, Map("contents" -> md) )
-        }
-
-        if (!dryrun) {
-          Files.write( dstdir resolve s"$filename.html", res.getBytes(StandardCharsets.UTF_8) )
-        }
+        srcs += SourceFile( srcdir, f, front, md, headings, layout )
       }
+
+    for (s <- subdirectories)
+      processDirectory( srcdir, s.getName )
   }
+
+//              backslashRenderer.capture( layout, Map("contents" -> md) )
+//        }
+//
+//        if (!dryrun) {
+//          Files.write( dstdir resolve s"$filename.html", res.getBytes(StandardCharsets.UTF_8) )
+//        }
 
 }
