@@ -62,6 +62,10 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
   def readPhase: Unit = {
     processDirectory( srcnorm, Paths get "" )
+
+//    for ((m, i) <- mdFiles zipWithIndex if i > 0) {
+//      if (m.)
+//    }
   }
 
   def writePhase: Unit = {
@@ -70,8 +74,8 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     require( Files isDirectory dstnorm, s"destination path is not a directory: $dstnorm" )
     require( Files isWritable dstnorm, s"destination directory is unwritable: $dstnorm" )
 
-    for (MdFile( dir, filename, vars, markdown, headings, layout ) <- mdFiles) {
-      val dstdir = dstnorm resolve (srcnorm relativize dir)
+    for (MdFile( dir, filename, vars, markdown, _, layout ) <- mdFiles) {
+      val dstdir = dstnorm resolve dir
       val page = backslashRenderer.capture( layout, Map("contents" -> markdown, "page" -> vars) )
 
       Files createDirectories dstdir
@@ -187,7 +191,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
         val vars = top -- Builder.predefinedTopMatterKeys
 
-        mdFiles += MdFile( srcdir, filename, vars, md, headings, layout )
+        mdFiles += MdFile( srcnorm relativize srcdir, filename, vars, md, headings, layout )
       }
 
     for (s <- subdirectories)
