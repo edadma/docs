@@ -64,7 +64,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   val navLinks = new ArrayBuffer[Link]
   val tocMap = new mutable.HashMap[(Path, String), List[Map[String, Any]]]
 
-  case class Link( path: Path, filename: String, level: Int, heading: String, id: String, sublinks: Buffer[Link] )
+  case class Link( path: String, level: Int, heading: String, id: String, sublinks: Buffer[Link] )
 
   def readPhase: Unit = {
     processDirectory( srcnorm, Paths get "" )
@@ -73,7 +73,13 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
       def links( headings: List[Heading] ): Buffer[Link] =
         headings map {
           case Heading( heading, id, level, subheadings) =>
-            Link( dir, filename, level, heading, id, links(subheadings) )
+            val path =
+              if (dir.toString == "")
+                s"$filename.html"
+              else
+                s"$dir/$filename.html"
+
+            Link( path, level, heading, id, links(subheadings) )
         } toBuffer
 
       navLinks ++= links( headings )
@@ -85,9 +91,8 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     val toc = {
       def toc( links: Seq[Link] ): List[Map[String, Any]] =
         links map {
-          case Link( path, filename, _, heading, id, sublinks ) =>
-            Map( "path" -> path.toString, "filename" -> filename, "heading" -> heading, "id" -> id,
-              "sublinks" -> toc(sublinks))
+          case Link( path, _, heading, id, sublinks ) =>
+            Map( "path" -> path, "heading" -> heading, "id" -> id, "sublinks" -> toc(sublinks))
         } toList
 
       toc( navLinks )
