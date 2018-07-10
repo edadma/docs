@@ -10,6 +10,7 @@ import xyz.hyperreal.backslash.{AST, Command, Parser, Renderer}
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConverters._
+import scala.collection.mutable.Buffer
 
 
 object Builder {
@@ -59,17 +60,21 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
   val mdFiles = new ArrayBuffer[MdFile]
   val resFiles = new ArrayBuffer[Path]
-  val siteHeadings = new ArrayBuffer[(Path, String, Heading)]
+  val navLinks = new ArrayBuffer[Link]
 
-  def addHeadings( path: Path, filename: String, headings: List[Heading] ) =
-    siteHeadings ++= headings map (h => (path, filename, h))
+  case class Link( path: Path, filename: String, level: Int, heading: String, id: String, sublinks: Buffer[Link] )
 
   def readPhase: Unit = {
     processDirectory( srcnorm, Paths get "" )
 
-    for ((m, i) <- mdFiles zipWithIndex if i > 0) {
-      if (m.headings.head.level >= mdFiles(i - 1).headings.last.level)
-        addHeadings( m.dir, m.filename, m.headings )
+    for (MdFile( dir, filename, _, _, headings, _ ) <- mdFiles) {
+      def links( headings: List[Heading] ): Buffer[Link] =
+        headings map {
+          case Heading( heading, id, level, subheadings) =>
+            Link( dir, filename, level, heading, id, links(subheadings) )
+        } toBuffer
+
+      navLinks ++= links( headings )
     }
   }
 

@@ -1,11 +1,13 @@
 ---
 title: The Title
 ---
-This is a nice image
+nice image
+==========
 
 ![droplet](images/droplet.jpg)
 
-Here's some highlighting
+some highlighting
+=================
 
 ```javascript
 Array.prototype.quick_sort = function () {
