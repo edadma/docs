@@ -59,13 +59,18 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
   val mdFiles = new ArrayBuffer[MdFile]
   val resFiles = new ArrayBuffer[Path]
+  val siteHeadings = new ArrayBuffer[(Path, String, Heading)]
+
+  def addHeadings( path: Path, filename: String, headings: List[Heading] ) =
+    siteHeadings ++= headings map (h => (path, filename, h))
 
   def readPhase: Unit = {
     processDirectory( srcnorm, Paths get "" )
 
-//    for ((m, i) <- mdFiles zipWithIndex if i > 0) {
-//      if (m.)
-//    }
+    for ((m, i) <- mdFiles zipWithIndex if i > 0) {
+      if (m.headings.head.level >= mdFiles(i - 1).headings.last.level)
+        addHeadings( m.dir, m.filename, m.headings )
+    }
   }
 
   def writePhase: Unit = {
