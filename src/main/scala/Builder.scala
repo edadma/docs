@@ -10,6 +10,7 @@ import xyz.hyperreal.backslash.{AST, Command, Parser, Renderer}
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.collection.mutable.Buffer
 
 
@@ -61,6 +62,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   val mdFiles = new ArrayBuffer[MdFile]
   val resFiles = new ArrayBuffer[Path]
   val navLinks = new ArrayBuffer[Link]
+  val tocMap = new mutable.HashMap[(Path, String), List[Map[String, Any]]]
 
   case class Link( path: Path, filename: String, level: Int, heading: String, id: String, sublinks: Buffer[Link] )
 
@@ -80,13 +82,24 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
   def writePhase: Unit = {
 
+    val toc = {
+      def toc( links: Seq[Link] ): List[Map[String, Any]] =
+        links map {
+          case Link( path, filename, _, heading, id, sublinks ) =>
+            Map( "path" -> path.toString, "filename" -> filename, "heading" -> heading, "id" -> id,
+              "sublinks" -> toc(sublinks))
+        } toList
+
+      toc( navLinks )
+    }
+
     Files createDirectories dstnorm
     require( Files isDirectory dstnorm, s"destination path is not a directory: $dstnorm" )
     require( Files isWritable dstnorm, s"destination directory is unwritable: $dstnorm" )
 
     for (MdFile( dir, filename, vars, markdown, _, layout ) <- mdFiles) {
       val dstdir = dstnorm resolve dir
-      val page = backslashRenderer.capture( layout, Map("contents" -> markdown, "page" -> vars) )
+      val page = backslashRenderer.capture( layout, Map("contents" -> markdown, "page" -> vars, "toc" -> toc) )
 
       Files createDirectories dstdir
       require( Files.exists(dstdir) && Files.isDirectory(dstdir), s"failed to create destination directory: $dstdir" )
