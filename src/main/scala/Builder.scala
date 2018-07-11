@@ -82,19 +82,22 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
             Link( path, level, heading, id, links(subheadings) )
         } toBuffer
 
-      navLinks ++= links( headings )
+      val pagelinks = links( headings )
+
+      navLinks ++= pagelinks
+      tocMap((dir, filename)) = toc( pagelinks )
     }
   }
 
+  def toc( links: Seq[Link] ): List[Map[String, Any]] =
+    links map {
+      case Link( path, _, heading, id, sublinks ) =>
+        Map( "path" -> path, "heading" -> heading, "id" -> id, "sublinks" -> toc(sublinks))
+    } toList
+
   def writePhase: Unit = {
 
-    val toc = {
-      def toc( links: Seq[Link] ): List[Map[String, Any]] =
-        links map {
-          case Link( path, _, heading, id, sublinks ) =>
-            Map( "path" -> path, "heading" -> heading, "id" -> id, "sublinks" -> toc(sublinks))
-        } toList
-
+    val sitetoc = {
       toc( navLinks )
     }
 
@@ -104,7 +107,9 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
     for (MdFile( dir, filename, vars, markdown, _, layout ) <- mdFiles) {
       val dstdir = dstnorm resolve dir
-      val page = backslashRenderer.capture( layout, Map("contents" -> markdown, "page" -> vars, "toc" -> toc) )
+      val pagetoc = tocMap((dir, filename))
+      val page = backslashRenderer.capture( layout, Map("contents" -> markdown, "page" -> vars,
+        "pagetoc" -> pagetoc, "sitetoc" -> sitetoc) )
 
       Files createDirectories dstdir
       require( Files.exists(dstdir) && Files.isDirectory(dstdir), s"failed to create destination directory: $dstdir" )
