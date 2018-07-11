@@ -102,6 +102,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   def writePhase: Unit = {
 
     val sitetoc = toc( navLinks )
+    val headingtoc = headingtocMap toMap
 
     Files createDirectories dstnorm
     require( Files isDirectory dstnorm, s"destination path is not a directory: $dstnorm" )
@@ -111,7 +112,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
       val dstdir = dstnorm resolve dir
       val pagetoc = pagetocMap((dir, filename))
       val page = backslashRenderer.capture( layout, Map("contents" -> markdown, "page" -> vars,
-        "pagetoc" -> pagetoc, "sitetoc" -> sitetoc) )
+        "pagetoc" -> pagetoc, "headingtoc" -> headingtoc,"'sitetoc" -> sitetoc) )
 
       Files createDirectories dstdir
       require( Files.exists(dstdir) && Files.isDirectory(dstdir), s"failed to create destination directory: $dstdir" )
