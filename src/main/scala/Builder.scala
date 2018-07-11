@@ -111,8 +111,8 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     for (MdFile( dir, filename, vars, markdown, _, layout ) <- mdFiles) {
       val dstdir = dstnorm resolve dir
       val pagetoc = pagetocMap((dir, filename))
-      val page = backslashRenderer.capture( layout, Map("contents" -> markdown, "page" -> vars,
-        "pagetoc" -> pagetoc, "headingtoc" -> headingtoc,"'sitetoc" -> sitetoc) )
+      val page = backslashRenderer.capture( layout, Map("contents" -> markdown, "page" -> (vars + ("toc" -> pagetoc)),
+        "headingtoc" -> headingtoc,"'sitetoc" -> sitetoc) )
 
       Files createDirectories dstdir
       require( Files.exists(dstdir) && Files.isDirectory(dstdir), s"failed to create destination directory: $dstdir" )

@@ -13,7 +13,7 @@
                 <div class="col-3">
                     <nav class="nav flex-column">
 
-                        \for pagetoc {
+                        \for page.toc {
                             <a class="nav-link" href="\path#\id">\heading</a>
                         }
 
