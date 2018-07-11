@@ -62,7 +62,8 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   val mdFiles = new ArrayBuffer[MdFile]
   val resFiles = new ArrayBuffer[Path]
   val navLinks = new ArrayBuffer[Link]
-  val tocMap = new mutable.HashMap[(Path, String), List[Map[String, Any]]]
+  val pagetocMap = new mutable.HashMap[(Path, String), List[Map[String, Any]]]
+  val headingtocMap = new mutable.HashMap[String, List[Map[String, Any]]]
 
   case class Link( path: String, level: Int, heading: String, id: String, sublinks: Buffer[Link] )
 
@@ -85,7 +86,10 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
       val pagelinks = links( headings )
 
       navLinks ++= pagelinks
-      tocMap((dir, filename)) = toc( pagelinks )
+      pagetocMap((dir, filename)) = toc( pagelinks )
+
+      for (l <- pagelinks)
+        headingtocMap(l.heading) = toc( Seq(l) )
     }
   }
 
@@ -97,9 +101,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
   def writePhase: Unit = {
 
-    val sitetoc = {
-      toc( navLinks )
-    }
+    val sitetoc = toc( navLinks )
 
     Files createDirectories dstnorm
     require( Files isDirectory dstnorm, s"destination path is not a directory: $dstnorm" )
@@ -107,7 +109,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
     for (MdFile( dir, filename, vars, markdown, _, layout ) <- mdFiles) {
       val dstdir = dstnorm resolve dir
-      val pagetoc = tocMap((dir, filename))
+      val pagetoc = pagetocMap((dir, filename))
       val page = backslashRenderer.capture( layout, Map("contents" -> markdown, "page" -> vars,
         "pagetoc" -> pagetoc, "sitetoc" -> sitetoc) )
 
