@@ -156,7 +156,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     def clean( dir: Path ): Unit = {
       for (f <- (Files list dir).iterator.asScala) {
         if (Files isDirectory f)
-          clean( dir resolve f.getFileName )
+          clean( f )
         else
           Files delete f
       }
