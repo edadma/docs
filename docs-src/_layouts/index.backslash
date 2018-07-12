@@ -14,10 +14,16 @@
                 <div class="col-3">
                     <nav class="nav flex-column">
 
-                        \for sitetoc {
-                            <a class="nav-link" href="\path#\id">\heading</a>
+                        \def nav links {
+                            \for links {
+                                <a class="nav-link" href="\path#\id">\heading</a>
+
+                                \if \nonEmpty \sublinks
+                                    \nav \sublinks
+                            }
                         }
 
+                        \nav \sitetoc
                     </nav>
                 </div>
 
