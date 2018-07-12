@@ -178,6 +178,53 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     if (dryrun || verbose)
       println( msg )
 
+  def processFile( f: Path ): Unit = {
+    verbosely( s"reading markdown file: $f" )
+
+    val filename = withoutExtension( f.getFileName.toString )
+    val s = io.Source.fromFile( f.toFile ).mkString
+    val (top, src) = {
+      val lines = s.lines
+
+      if (lines.hasNext && lines.next == "---") {
+        (read( lines takeWhile( _ != "---" ) mkString "\n" ).head match {
+          case m: Map[_, _] => m.asInstanceOf[Map[String, Any]]
+          case _ => sys.error( s"expected an object as top matter: $f" )
+        }, lines mkString "\n")
+      } else
+        (Map[String, Any](), s)
+    }
+
+    val (md, headings) = Markdown.withHeadings( src )
+    val layout =
+      top get "layout" match {
+        case None =>
+          if (filename == "index")
+            layouts get "index" match {
+              case None =>
+                layouts get "page" match {
+                  case None => sys.error( s"neither 'index' nor 'page' layout found for laying out $f" )
+                  case Some( l ) => l
+                }
+              case Some( l ) => l
+            }
+          else
+            layouts get "page" match {
+              case None => sys.error( s"'page' layout not found for laying out $f" )
+              case Some( l ) => l
+            }
+        case Some( l ) =>
+          layouts get l.toString match {
+            case None => sys.error( s"layout not found: $l in file $f" )
+            case Some( ast ) => ast
+          }
+      }
+
+    val vars = top -- Builder.predefinedTopMatterKeys
+
+    mdFiles += MdFile( srcnorm relativize f.getParent, filename, vars, md, headings, layout )
+  }
+
   def processDirectory( parent: Path, sub: Path ): Unit = {
     val srcdir = parent resolve sub
 
@@ -191,52 +238,8 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     resFiles ++= files filter (f => !f.getFileName.toString.endsWith(".md"))
 
     if (mds nonEmpty)
-      for (f <- mds) {
-        verbosely( s"reading markdown file: $f" )
-
-        val filename = withoutExtension( f.getFileName.toString )
-        val s = io.Source.fromFile( f.toFile ).mkString
-        val (top, src) = {
-          val lines = s.lines
-
-          if (lines.hasNext && lines.next == "---") {
-            (read( lines takeWhile( _ != "---" ) mkString "\n" ).head match {
-              case m: Map[_, _] => m.asInstanceOf[Map[String, Any]]
-              case _ => sys.error( s"expected an object as top matter: $f" )
-            }, lines mkString "\n")
-          } else
-            (Map[String, Any](), s)
-        }
-
-        val (md, headings) = Markdown.withHeadings( src )
-        val layout =
-          top get "layout" match {
-            case None =>
-              if (filename == "index")
-                layouts get "index" match {
-                  case None =>
-                    layouts get "page" match {
-                      case None => sys.error( s"neither 'index' nor 'page' layout found for laying out $f" )
-                      case Some( l ) => l
-                    }
-                  case Some( l ) => l
-                }
-              else
-                layouts get "page" match {
-                  case None => sys.error( s"'page' layout not found for laying out $f" )
-                  case Some( l ) => l
-                }
-            case Some( l ) =>
-              layouts get l.toString match {
-                case None => sys.error( s"layout not found: $l in file $f" )
-                case Some( ast ) => ast
-              }
-          }
-
-        val vars = top -- Builder.predefinedTopMatterKeys
-
-        mdFiles += MdFile( srcnorm relativize srcdir, filename, vars, md, headings, layout )
-      }
+      for (f <- mds)
+        processFile( f: Path )
 
     for (s <- subdirectories)
       processDirectory( srcdir, s.getFileName )
