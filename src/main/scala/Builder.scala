@@ -29,7 +29,6 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   require( Files isReadable srcnorm, s"source directory is unreadable: $srcnorm" )
 
   val dstnorm = dst.normalize
-  val layoutdir = srcnorm resolve "_layouts"
   val backslashConfig =
     Map(
       "today" -> "MMMM d, y",
@@ -38,6 +37,8 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     )
   val backslashParser = new Parser( Command.standard )
   val backslashRenderer = new Renderer( backslashParser, backslashConfig )
+
+  val layoutdir = srcnorm resolve "_layouts"
 
   require( Files exists layoutdir, s"'_layouts directory does not exist: $layoutdir" )
   require( Files isDirectory layoutdir, s"not a directory: $layoutdir" )
@@ -57,6 +58,26 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     ls toMap
   }
 
+  val configdir = srcnorm resolve "_config"
+
+  require( Files exists configdir, s"'_config directory does not exist: $configdir" )
+  require( Files isDirectory configdir, s"not a directory: $configdir" )
+  require( Files isReadable configdir, s"_config directory is unreadable: $configdir" )
+  verbosely( s"processing configs: $configdir" )
+
+  val configs = {
+    val yamls = (Files list configdir).iterator.asScala.toList.filter (p => Files.isRegularFile(p) && Files.isReadable(p) && p.getFileName.toString.endsWith(".yml"))
+    val cs =
+      for (l <- yamls)
+        yield {
+          verbosely( s"reading config: $l" )
+
+          (withoutExtension(l.getFileName.toString), read( io.Source.fromFile(l.toFile) ).head)
+        }
+
+    cs toMap
+  }
+
   case class MdFile( dir: Path, filename: String, vars: Map[String, Any], md: String, headings: List[Heading], layout: AST )
 
   val mdFiles = new ArrayBuffer[MdFile]
@@ -68,7 +89,25 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   case class Link( path: String, level: Int, heading: String, id: String, sublinks: Buffer[Link] )
 
   def readPhase: Unit = {
-    processDirectory( srcnorm )
+    configs get "pages" match {
+      case None => processDirectory( srcnorm )
+      case Some( pgs: List[_] ) if pgs.forall(_.isInstanceOf[String]) =>
+        for (p <- pgs.asInstanceOf[List[String]]) {
+          val folder = srcnorm resolve Paths.get( p )
+
+          if (Files.exists( folder ) && Files.isDirectory( folder ) && Files.isReadable( folder ))
+            processDirectory( folder )
+          else {
+            val md = srcnorm resolve Paths.get( s"$p.md" )
+
+            if (!(Files.exists(md) && Files.isRegularFile(md) && Files.isReadable(md)))
+              sys.error( s"markdown file not found or is not readable: $md" )
+
+            processFile( md )
+          }
+        }
+      case _ => sys.error( "expected list of paths for 'pages' configuration" )
+    }
 
     for (MdFile( dir, filename, _, _, headings, _ ) <- mdFiles) {
       def links( headings: List[Heading] ): Buffer[Link] =
@@ -179,7 +218,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
       println( msg )
 
   def processFile( f: Path ): Unit = {
-    verbosely( s"reading markdown file: $f" )
+    verbosely( s"reading markdown: $f" )
 
     val filename = withoutExtension( f.getFileName.toString )
     val s = io.Source.fromFile( f.toFile ).mkString
