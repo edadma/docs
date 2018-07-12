@@ -6,6 +6,7 @@
         <base href="\base">
         <link rel="stylesheet" type="text/css" href="css/friendly.css">
         <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css">
+        <link rel="stylesheet" type="text/css" href="css/docs.css">
     </head>
     <body>
         <main role="main" class="container">
