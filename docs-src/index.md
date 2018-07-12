@@ -105,4 +105,3 @@ Array.prototype.quick_sort = function () {
         .concat(this.filter(x => x >  pivot).quick_sort());
 };
 ```
-
