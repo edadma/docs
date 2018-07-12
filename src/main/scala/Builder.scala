@@ -109,6 +109,8 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
       case _ => sys.error( "expected list of paths for 'pages' configuration" )
     }
 
+    scanDirectory( srcnorm )
+
     for (MdFile( dir, filename, _, _, headings, _ ) <- mdFiles) {
       def links( headings: List[Heading] ): Buffer[Link] =
         headings map {
@@ -264,15 +266,27 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     mdFiles += MdFile( srcnorm relativize f.getParent, filename, vars, md, headings, layout )
   }
 
-  def processDirectory( dir: Path ): Unit = {
-    verbosely( s"processing directory: $dir" )
+  def scanDirectory( dir: Path ): Unit = {
+    verbosely( s"scanning directory for assets: $dir" )
 
-    val contents = (Files list dir).iterator.asScala.toList filterNot (_.getFileName.toString startsWith "_")
+    val contents = listDirectory( dir )
+    val subdirectories = contents filter (d => Files.isDirectory(d) && Files.isReadable(d))
+    val files = contents filter (f => Files.isRegularFile(f) && Files.isReadable(f))
+
+    resFiles ++= files filter (f => !f.getFileName.toString.endsWith(".md"))
+    subdirectories foreach scanDirectory
+  }
+
+  def listDirectory( dir: Path ) =
+    (Files list dir).iterator.asScala.toList filterNot (_.getFileName.toString startsWith "_") sorted
+
+  def processDirectory( dir: Path ): Unit = {
+    verbosely( s"searching directory for markdown: $dir" )
+
+    val contents = listDirectory( dir )
     val subdirectories = contents filter (d => Files.isDirectory(d) && Files.isReadable(d))
     val files = contents filter (f => Files.isRegularFile(f) && Files.isReadable(f))
     val mds = files filter (f => f.getFileName.toString.endsWith(".md"))
-
-    resFiles ++= files filter (f => !f.getFileName.toString.endsWith(".md"))
 
     if (mds nonEmpty)
       mds foreach processFile
