@@ -68,7 +68,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   case class Link( path: String, level: Int, heading: String, id: String, sublinks: Buffer[Link] )
 
   def readPhase: Unit = {
-    processDirectory( srcnorm, Paths get "" )
+    processDirectory( srcnorm )
 
     for (MdFile( dir, filename, _, _, headings, _ ) <- mdFiles) {
       def links( headings: List[Heading] ): Buffer[Link] =
@@ -225,12 +225,10 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     mdFiles += MdFile( srcnorm relativize f.getParent, filename, vars, md, headings, layout )
   }
 
-  def processDirectory( parent: Path, sub: Path ): Unit = {
-    val srcdir = parent resolve sub
+  def processDirectory( dir: Path ): Unit = {
+    verbosely( s"processing directory: $dir" )
 
-    verbosely( s"processing directory: $srcdir" )
-
-    val contents = (Files list srcdir).iterator.asScala.toList filterNot (_.getFileName.toString startsWith "_")
+    val contents = (Files list dir).iterator.asScala.toList filterNot (_.getFileName.toString startsWith "_")
     val subdirectories = contents filter (d => Files.isDirectory(d) && Files.isReadable(d))
     val files = contents filter (f => Files.isRegularFile(f) && Files.isReadable(f))
     val mds = files filter (f => f.getFileName.toString.endsWith(".md"))
@@ -238,11 +236,9 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     resFiles ++= files filter (f => !f.getFileName.toString.endsWith(".md"))
 
     if (mds nonEmpty)
-      for (f <- mds)
-        processFile( f: Path )
+      mds foreach processFile
 
-    for (s <- subdirectories)
-      processDirectory( srcdir, s.getFileName )
+    subdirectories foreach processDirectory
   }
 
 }
