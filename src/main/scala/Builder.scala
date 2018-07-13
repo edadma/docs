@@ -88,6 +88,11 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
   case class Link( path: String, level: Int, heading: String, id: String, sublinks: Buffer[Link] )
 
+  def problem( msg: String ) = {
+    println( msg )
+    sys.exit( 1 )
+  }
+
   def readPhase: Unit = {
     configs get "pages" match {
       case None => processDirectory( srcnorm )
@@ -101,12 +106,12 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
             val md = srcnorm resolve Paths.get( s"$p.md" )
 
             if (!(Files.exists(md) && Files.isRegularFile(md) && Files.isReadable(md)))
-              sys.error( s"markdown file not found or is not readable: $md" )
+              problem( s"markdown file not found or is not readable: $md" )
 
             processFile( md )
           }
         }
-      case _ => sys.error( "expected list of paths for 'pages' configuration" )
+      case _ => problem( "expected list of paths for 'pages' configuration" )
     }
 
     scanDirectory( srcnorm )
@@ -230,7 +235,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
       if (lines.hasNext && lines.next == "---") {
         (read( lines takeWhile( _ != "---" ) mkString "\n" ).head match {
           case m: Map[_, _] => m.asInstanceOf[Map[String, Any]]
-          case _ => sys.error( s"expected an object as top matter: $f" )
+          case _ => problem( s"expected an object as top matter: $f" )
         }, lines mkString "\n")
       } else
         (Map[String, Any](), s)
@@ -244,19 +249,19 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
             layouts get "index" match {
               case None =>
                 layouts get "page" match {
-                  case None => sys.error( s"neither 'index' nor 'page' layout found for laying out $f" )
+                  case None => problem( s"neither 'index' nor 'page' layout found for laying out $f" )
                   case Some( l ) => l
                 }
               case Some( l ) => l
             }
           else
             layouts get "page" match {
-              case None => sys.error( s"'page' layout not found for laying out $f" )
+              case None => problem( s"'page' layout not found for laying out $f" )
               case Some( l ) => l
             }
         case Some( l ) =>
           layouts get l.toString match {
-            case None => sys.error( s"layout not found: $l in file $f" )
+            case None => problem( s"layout not found: $l in file $f" )
             case Some( ast ) => ast
           }
       }

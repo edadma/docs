@@ -1,36 +1,9 @@
 ---
-title: The Title
+title: "Docs - A Simple Documentation System"
 ---
-nice image
-==========
 
-![droplet](images/droplet.jpg)
+Overview
+========
 
-subheading
-----------
+*Docs* is a very simple system for transforming [Markdown](http://asdf.com) files to [HTML](http://).  *Docs* handles the details of page layout, which includes the table of contents and insuring that links to markdown files in sub-folders work as expected.
 
-### subsubheading
-
-#### subsubsubheading
-
-##### subsubsubsubheading
-
-###### subsubsubsubsubheading
-
-some highlighting
-=================
-
-```javascript
-/* Quicksort Example */
-
-Array.prototype.quick_sort = function () {
-    if (this.length < 2) { return this; }
-
-    var pivot = this[Math.round(this.length / 2)];
-
-    return this.filter(x => x <  pivot)
-        .quick_sort()
-        .concat(this.filter(x => x == pivot))
-        .concat(this.filter(x => x >  pivot).quick_sort());
-};
-```
