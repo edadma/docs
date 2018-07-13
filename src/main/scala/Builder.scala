@@ -2,31 +2,31 @@
 package xyz.hyperreal.docs
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path, Paths}
-
-import xyz.hyperreal.yaml.read
-import xyz.hyperreal.markdown.{Heading, Markdown}
-import xyz.hyperreal.backslash.{AST, Command, Parser, Renderer}
+import java.nio.file.{Paths, Path, Files, StandardCopyOption}
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.Buffer
 
+import xyz.hyperreal.yaml
+import xyz.hyperreal.markdown.{Heading, Markdown}
+import xyz.hyperreal.backslash.{AST, Command, Parser, Renderer}
+
 
 object Builder {
 
-  val predefinedTopMatterKeys = Set( "layout" )
+  val predefinedFrontmatterKeys = Set( "layout" )
 
 }
 
-class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean = false ) {
+class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
 
   val srcnorm = src.normalize
 
-  require( Files exists srcnorm, s"source does not exist: $srcnorm" )
-  require( Files isDirectory srcnorm, s"source path is not a directory: $srcnorm" )
-  require( Files isReadable srcnorm, s"source directory is unreadable: $srcnorm" )
+  check( Files exists srcnorm, s"source does not exist: $srcnorm" )
+  check( Files isDirectory srcnorm, s"source path is not a directory: $srcnorm" )
+  check( Files isReadable srcnorm, s"source directory is unreadable: $srcnorm" )
 
   val dstnorm = dst.normalize
   val backslashConfig =
@@ -40,17 +40,24 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
   val layoutdir = srcnorm resolve "_layouts"
 
-  require( Files exists layoutdir, s"'_layouts directory does not exist: $layoutdir" )
-  require( Files isDirectory layoutdir, s"not a directory: $layoutdir" )
-  require( Files isReadable layoutdir, s"_layouts directory is unreadable: $layoutdir" )
-  verbosely( s"processing layouts: $layoutdir" )
+  check( Files exists layoutdir, s"'_layouts directory does not exist: $layoutdir" )
+  check( Files isDirectory layoutdir, s"not a directory: $layoutdir" )
+  check( Files isReadable layoutdir, s"_layouts directory is unreadable: $layoutdir" )
+
+  val configdir = srcnorm resolve "_config"
+
+  check( Files exists configdir, s"'_config directory does not exist: $configdir" )
+  check( Files isDirectory configdir, s"not a directory: $configdir" )
+  check( Files isReadable configdir, s"_config directory is unreadable: $configdir" )
+
+  info( s"processing layouts: $layoutdir" )
 
   val layouts = {
     val templates = (Files list layoutdir).iterator.asScala.toList.filter (p => Files.isRegularFile(p) && Files.isReadable(p) && p.getFileName.toString.endsWith(".backslash"))
     val ls =
       for (l <- templates)
         yield {
-          verbosely( s"reading layout: $l" )
+          info( s"reading layout: $l" )
 
           (withoutExtension(l.getFileName.toString), backslashParser.parse( io.Source.fromFile(l.toFile) ))
         }
@@ -58,21 +65,16 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     ls toMap
   }
 
-  val configdir = srcnorm resolve "_config"
-
-  require( Files exists configdir, s"'_config directory does not exist: $configdir" )
-  require( Files isDirectory configdir, s"not a directory: $configdir" )
-  require( Files isReadable configdir, s"_config directory is unreadable: $configdir" )
-  verbosely( s"processing configs: $configdir" )
+  info( s"processing configs: $configdir" )
 
   val configs = {
     val yamls = (Files list configdir).iterator.asScala.toList.filter (p => Files.isRegularFile(p) && Files.isReadable(p) && p.getFileName.toString.endsWith(".yml"))
     val cs =
       for (l <- yamls)
         yield {
-          verbosely( s"reading config: $l" )
+          info( s"reading config: $l" )
 
-          (withoutExtension(l.getFileName.toString), read( io.Source.fromFile(l.toFile) ).head)
+          (withoutExtension(l.getFileName.toString), yaml.read( io.Source.fromFile(l.toFile) ).head)
         }
 
     cs toMap
@@ -88,12 +90,13 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
   case class Link( path: String, level: Int, heading: String, id: String, sublinks: Buffer[Link] )
 
-  def problem( msg: String ) = {
-    println( msg )
-    sys.exit( 1 )
-  }
+  def check( cond: Boolean, msg: String ) =
+    if (!cond)
+      problem( msg )
 
-  def readPhase: Unit = {
+  def problem( msg: String ) = throw new DocsException( msg )
+
+  def readSources: Unit = {
     configs get "pages" match {
       case None => processDirectory( srcnorm )
       case Some( pgs: List[_] ) if pgs.forall(_.isInstanceOf[String]) =>
@@ -145,14 +148,14 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
         Map( "path" -> path, "heading" -> heading, "id" -> id, "sublinks" -> toc(sublinks))
     } toList
 
-  def writePhase: Unit = {
+  def writeSite: Unit = {
 
     val sitetoc = toc( navLinks )
     val headingtoc = headingtocMap toMap
 
     Files createDirectories dstnorm
-    require( Files isDirectory dstnorm, s"destination path is not a directory: $dstnorm" )
-    require( Files isWritable dstnorm, s"destination directory is unwritable: $dstnorm" )
+    check( Files isDirectory dstnorm, s"destination path is not a directory: $dstnorm" )
+    check( Files isWritable dstnorm, s"destination directory is unwritable: $dstnorm" )
 
     for (MdFile( dir, filename, vars, markdown, _, layout ) <- mdFiles) {
       val dstdir = dstnorm resolve dir
@@ -169,12 +172,12 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
         ) ++ configs )
 
       Files createDirectories dstdir
-      require( Files.exists(dstdir) && Files.isDirectory(dstdir), s"failed to create destination directory: $dstdir" )
-      require( Files isWritable dstdir, s"destination directory is unwritable: $dstdir" )
+      check( Files.exists(dstdir) && Files.isDirectory(dstdir), s"failed to create destination directory: $dstdir" )
+      check( Files isWritable dstdir, s"destination directory is unwritable: $dstdir" )
 
       val pagepath = dstdir resolve s"$filename.html"
 
-      verbosely( s"writting page: $pagepath" )
+      info( s"writting page: $pagepath" )
       Files.write( pagepath, page.getBytes(StandardCharsets.UTF_8) )
     }
 
@@ -183,19 +186,21 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
       val filename = p.getFileName
       val dstdir = dstpath.getParent
 
-      verbosely( s"copying asset '$filename' from ${p.getParent} to $dstdir" )
-      Files createDirectories dstdir
-      Files.copy( p, dstpath )
+      if (Files.exists(dstpath) && Files.isRegularFile(dstpath) && Files.isReadable(dstpath) &&
+        Files.getLastModifiedTime(p).compareTo( Files.getLastModifiedTime(dstpath) ) <= 0)
+        info( s"asset '$filename' is up-to-date" )
+      else {
+        info( s"copying asset '$filename' from ${p.getParent} to $dstdir" )
+        Files createDirectories dstdir
+        Files.copy( p, dstpath, StandardCopyOption.REPLACE_EXISTING )
+      }
     }
 
   }
 
   def build: Unit = {
-    readPhase
-
-    if (!dryrun) {
-      writePhase
-    }
+    readSources
+    writeSite
   }
 
   def clean: Unit = {
@@ -220,22 +225,22 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
       case dot => s.substring( 0, dot )
     }
 
-  def verbosely( msg: String ): Unit =
-    if (dryrun || verbose)
+  def info( msg: String ): Unit =
+    if (verbose)
       println( msg )
 
   def processFile( f: Path ): Unit = {
-    verbosely( s"reading markdown: $f" )
+    info( s"reading markdown: $f" )
 
     val filename = withoutExtension( f.getFileName.toString )
     val s = io.Source.fromFile( f.toFile ).mkString
-    val (top, src) = {
+    val (front, src) = {
       val lines = s.lines
 
       if (lines.hasNext && lines.next == "---") {
-        (read( lines takeWhile( _ != "---" ) mkString "\n" ).head match {
+        (yaml.read( lines takeWhile( _ != "---" ) mkString "\n" ).head match {
           case m: Map[_, _] => m.asInstanceOf[Map[String, Any]]
-          case _ => problem( s"expected an object as top matter: $f" )
+          case _ => problem( s"expected an object as front matter: $f" )
         }, lines mkString "\n")
       } else
         (Map[String, Any](), s)
@@ -243,7 +248,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
 
     val (md, headings) = Markdown.withHeadings( src )
     val layout =
-      top get "layout" match {
+      front get "layout" match {
         case None =>
           if (filename == "index")
             layouts get "index" match {
@@ -266,13 +271,13 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
           }
       }
 
-    val vars = top -- Builder.predefinedTopMatterKeys
+    val vars = front -- Builder.predefinedFrontmatterKeys
 
     mdFiles += MdFile( srcnorm relativize f.getParent, filename, vars, md, headings, layout )
   }
 
   def scanDirectory( dir: Path ): Unit = {
-    verbosely( s"scanning directory for assets: $dir" )
+    info( s"scanning directory for assets: $dir" )
 
     val contents = listDirectory( dir )
     val subdirectories = contents filter (d => Files.isDirectory(d) && Files.isReadable(d))
@@ -286,7 +291,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
     (Files list dir).iterator.asScala.toList filterNot (_.getFileName.toString startsWith "_") sorted
 
   def processDirectory( dir: Path ): Unit = {
-    verbosely( s"searching directory for markdown: $dir" )
+    info( s"searching directory for markdown: $dir" )
 
     val contents = listDirectory( dir )
     val subdirectories = contents filter (d => Files.isDirectory(d) && Files.isReadable(d))

@@ -5,9 +5,9 @@ import java.nio.file.Paths
 
 object Main extends App {
 
-  val site = new Builder( Paths get "docs-src", Paths get "docs", dryrun = false, verbose = true )
+  val site = new Builder( Paths get "docs-src", Paths get "docs", verbose = true )
 
-  site.clean
+//  site.clean
   site.build
 
 }
