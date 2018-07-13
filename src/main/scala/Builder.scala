@@ -38,17 +38,23 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
   val backslashParser = new Parser( Command.standard )
   val backslashRenderer = new Renderer( backslashParser, backslashConfig )
 
-  val layoutdir = srcnorm resolve "_layouts"
+  val layoutdir = srcnorm resolve "layouts"
 
-  check( Files exists layoutdir, s"'_layouts directory does not exist: $layoutdir" )
+  check( Files exists layoutdir, s"'layouts directory does not exist: $layoutdir" )
   check( Files isDirectory layoutdir, s"not a directory: $layoutdir" )
-  check( Files isReadable layoutdir, s"_layouts directory is unreadable: $layoutdir" )
+  check( Files isReadable layoutdir, s"layouts directory is unreadable: $layoutdir" )
 
-  val configdir = srcnorm resolve "_config"
+  val configdir = srcnorm resolve "config"
 
-  check( Files exists configdir, s"'_config directory does not exist: $configdir" )
+  check( Files exists configdir, s"'config directory does not exist: $configdir" )
   check( Files isDirectory configdir, s"not a directory: $configdir" )
-  check( Files isReadable configdir, s"_config directory is unreadable: $configdir" )
+  check( Files isReadable configdir, s"config directory is unreadable: $configdir" )
+
+  val sources = srcnorm resolve "src"
+
+  check( Files exists sources, s"'sources directory does not exist: $sources" )
+  check( Files isDirectory sources, s"not a directory: $sources" )
+  check( Files isReadable sources, s"sources directory is unreadable: $sources" )
 
   info( s"processing layouts: $layoutdir" )
 
@@ -98,15 +104,15 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
 
   def readSources: Unit = {
     configs get "pages" match {
-      case None => processDirectory( srcnorm )
+      case None => processDirectory( sources )
       case Some( pgs: List[_] ) if pgs.forall(_.isInstanceOf[String]) =>
         for (p <- pgs.asInstanceOf[List[String]]) {
-          val folder = srcnorm resolve Paths.get( p )
+          val folder = sources resolve Paths.get( p )
 
           if (Files.exists( folder ) && Files.isDirectory( folder ) && Files.isReadable( folder ))
             processDirectory( folder )
           else {
-            val md = srcnorm resolve Paths.get( s"$p.md" )
+            val md = sources resolve Paths.get( s"$p.md" )
 
             if (!(Files.exists(md) && Files.isRegularFile(md) && Files.isReadable(md)))
               problem( s"markdown file not found or is not readable: $md" )
@@ -117,7 +123,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
       case _ => problem( "expected list of paths for 'pages' configuration" )
     }
 
-    scanDirectory( srcnorm )
+    scanDirectory( sources )
 
     for (MdFile( dir, filename, _, _, headings, _ ) <- mdFiles) {
       def links( headings: List[Heading] ): Buffer[Link] =
@@ -182,7 +188,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
     }
 
     for (p <- resFiles) {
-      val dstpath = dstnorm resolve (srcnorm relativize p)
+      val dstpath = dstnorm resolve (sources relativize p)
       val filename = p.getFileName
       val dstdir = dstpath.getParent
 
@@ -273,7 +279,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
 
     val vars = front -- Builder.predefinedFrontmatterKeys
 
-    mdFiles += MdFile( srcnorm relativize f.getParent, filename, vars, md, headings, layout )
+    mdFiles += MdFile( sources relativize f.getParent, filename, vars, md, headings, layout )
   }
 
   def scanDirectory( dir: Path ): Unit = {
