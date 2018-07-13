@@ -6,6 +6,9 @@ nice image
 
 ![droplet](images/droplet.jpg)
 
+subheading
+----------
+
 some highlighting
 =================
 

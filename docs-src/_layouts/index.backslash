@@ -12,19 +12,22 @@
         <main role="main" class="container">
             <div class="row">
                 <div class="col-3">
-                    <nav class="nav flex-column">
+                    \def nav links {
+                        <nav class="nav flex-column">
 
-                        \def nav links {
                             \for links {
-                                <a class="nav-link" href="\path#\id">\heading</a>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="\path#\id">\heading</a>
 
-                                \if \nonEmpty \sublinks
-                                    \nav \sublinks
+                                    \if \nonEmpty \sublinks
+                                        \nav \sublinks
+                                </li>
                             }
-                        }
 
-                        \nav \sitetoc
-                    </nav>
+                        </nav>
+                    }
+
+                    \nav\sitetoc
                 </div>
 
                 <div class="col-9">
