@@ -4,7 +4,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
         <title>\page.title</title>
         <base href="\base">
-        <link rel="stylesheet" type="text/css" href="css/friendly.css">
+        <link rel="stylesheet" type="text/css" href="css/manni.css">
         <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css">
         <link rel="stylesheet" type="text/css" href="css/docs.css">
     </head>
