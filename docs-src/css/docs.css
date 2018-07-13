@@ -4,3 +4,7 @@ pre > code {
   display: block;
   padding: 20px;
 }
+
+nav > ul > li > a + div > ul > li > a {
+    text-indent: 15px; /* Can use padding-left as well */
+}
