@@ -2,9 +2,25 @@ pre > code {
   background-color: #eee;
   border: 1px solid #999;
   display: block;
-  padding: 20px;
+  padding: 15px;
 }
 
 .nav > li > ul > li a {
-  padding-left: 26px !important;
+  text-indent: 20px;
+}
+
+.nav > li > ul > li > ul > li a {
+  text-indent: 40px;
+}
+
+.nav > li > ul > li > ul > li > ul > li a {
+  text-indent: 60px;
+}
+
+.nav > li > ul > li > ul > li > ul > li > ul > li a {
+  text-indent: 80px;
+}
+
+.nav > li > ul > li > ul > li > ul > li > ul > li > ul > li a {
+  text-indent: 100px;
 }

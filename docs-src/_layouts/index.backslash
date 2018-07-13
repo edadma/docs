@@ -18,10 +18,10 @@
                             \for links {
                                 <li class="nav-item">
                                     <a class="nav-link" href="\path#\id">\heading</a>
-                                </li>
 
-                                    \if \nonEmpty \sublinks
-                                        \nav \sublinks
+                                    \if \nonEmpty\sublinks
+                                        \nav\sublinks
+                                </li>
                             }
 
                         </ul>
