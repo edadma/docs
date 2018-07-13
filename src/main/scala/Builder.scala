@@ -32,7 +32,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
   val backslashConfig =
     Map(
       "today" -> "MMMM d, y",
-      "include" -> ".",
+      "include" -> (srcnorm resolve "_includes").toString,
       "rounding" -> "HALF_EVEN"
     )
   val backslashParser = new Parser( Command.standard )
