@@ -161,7 +161,7 @@ class Builder( src: Path, dst: Path, dryrun: Boolean = false, verbose: Boolean =
           "headingtoc" -> headingtoc,
           "sitetoc" -> sitetoc,
           "base" -> base
-        ) )
+        ) ++ configs )
 
       Files createDirectories dstdir
       require( Files.exists(dstdir) && Files.isDirectory(dstdir), s"failed to create destination directory: $dstdir" )
