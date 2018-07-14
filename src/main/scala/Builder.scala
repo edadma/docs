@@ -96,12 +96,6 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
 
   case class Link( path: String, level: Int, heading: String, id: String, sublinks: Buffer[Link] )
 
-  def check( cond: Boolean, msg: String ) =
-    if (!cond)
-      problem( msg )
-
-  def problem( msg: String ) = throw new DocsException( msg )
-
   def readSources: Unit = {
     configs get "pages" match {
       case None => processDirectory( sources )
@@ -159,9 +153,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
     val sitetoc = toc( navLinks )
     val headingtoc = headingtocMap toMap
 
-    Files createDirectories dstnorm
-    check( Files isDirectory dstnorm, s"destination path is not a directory: $dstnorm" )
-    check( Files isWritable dstnorm, s"destination directory is unwritable: $dstnorm" )
+    create( dstnorm )
 
     for (MdFile( dir, filename, vars, markdown, _, layout ) <- mdFiles) {
       val dstdir = dstnorm resolve dir
@@ -177,9 +169,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
           "base" -> base
         ) ++ configs )
 
-      Files createDirectories dstdir
-      check( Files.exists(dstdir) && Files.isDirectory(dstdir), s"failed to create destination directory: $dstdir" )
-      check( Files isWritable dstdir, s"destination directory is unwritable: $dstdir" )
+      create( dstdir )
 
       val pagepath = dstdir resolve s"$filename.html"
 
