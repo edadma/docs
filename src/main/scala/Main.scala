@@ -1,8 +1,8 @@
 package xyz.hyperreal.docs
 
 import java.io.File
+import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
-import java.net.URI
 
 import xyz.hyperreal.args.Options
 
@@ -22,7 +22,7 @@ object Main extends App {
         val dir = Paths get src
 
         init( dir, theme )
-        println( s"Initialized Docs project in ${dir.toAbsolutePath}${File.separator}" )
+        println( s"Initialized Docs project in ${dir.toAbsolutePath}${File.separator} with '$theme' theme." )
         sys.exit
       case "-v" :: t =>
         verbose = true
@@ -85,5 +85,17 @@ object Main extends App {
 
       Files.copy( resource, dir resolve filepath )
     }
+
+    val index =
+      s"""
+        |---
+        |title: "Documentation"
+        |---
+        |
+        |Overview
+        |========
+      """.trim.stripMargin
+
+    Files.write( dir resolve "src" resolve "index.md", index.getBytes(StandardCharsets.UTF_8) )
   }
 }
