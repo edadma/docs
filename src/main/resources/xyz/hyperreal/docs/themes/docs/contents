@@ -4,3 +4,4 @@ layouts/page.backslash
 src/css/bootstrap.min.css
 src/css/docs.css
 src/css/manni.css
+src/js/bootstrap.min.js

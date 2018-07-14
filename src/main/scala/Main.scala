@@ -78,6 +78,7 @@ object Main extends App {
     create( dir resolve "layouts" )
     create( dir resolve "includes" )
     create( dir resolve "src" resolve "css" )
+    create( dir resolve "src" resolve "js" )
     create( dir resolve "src" resolve "images" )
 
     for ((resource, file) <- resources) {
@@ -87,14 +88,14 @@ object Main extends App {
     }
 
     val index =
-      s"""
-        |---
-        |title: "Documentation"
-        |---
-        |
-        |Overview
-        |========
-      """.trim.stripMargin
+      s"""---
+         |title: Documentation
+         |---
+         |
+         |Overview
+         |========
+         |
+         |""".stripMargin
 
     Files.write( dir resolve "src" resolve "index.md", index.getBytes(StandardCharsets.UTF_8) )
   }
