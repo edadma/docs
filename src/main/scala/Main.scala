@@ -7,15 +7,8 @@ import xyz.hyperreal.args.Options
 
 object Main extends App {
 
-  if (args isEmpty) {
-    println(
-      """
-        |Docs v0.1
-        |
-        |Usage: java -jar docs-0.1.jar <document folder> [<destination folder>]
-      """.trim.stripMargin )
-    sys.exit( 1 )
-  }
+  if (args isEmpty)
+    usage( 1 )
 
   var verbose = false
   var src: String = null
@@ -31,15 +24,34 @@ object Main extends App {
     case "-o" :: d :: t =>
       dst = d
       t
+    case ("-h"|"-help"|"--help") :: _ => usage( 0 )
     case s :: _ if s startsWith "-" => sys.error( s"invalid switch $s" )
     case file :: t =>
       src = file
       t
   }
 
-  val site = new Builder( Paths get src, Paths get dst, verbose )
+  if (src eq null)
+    usage( 1 )
+
+  val srcpath = Paths get src
+  val dstpath =
+    if (dst eq null)
+      srcpath resolve dst
+    else
+      Paths get dst
+  val site = new Builder( srcpath, dstpath, verbose )
 
   site.build
+
+  def usage( st: Int ) = {
+    println(
+      """
+        |Docs v0.1
+        |Usage: java -jar docs-0.1.jar <document folder> [<destination folder>]
+      """.trim.stripMargin )
+    sys.exit( st )
+  }
 
   def init: Unit = {
 
