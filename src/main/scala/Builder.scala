@@ -32,7 +32,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
   val backslashConfig =
     Map(
       "today" -> "MMMM d, y",
-      "include" -> (srcnorm resolve "_includes").toString,
+      "include" -> (srcnorm resolve "includes").toString,
       "rounding" -> "HALF_EVEN"
     )
   val backslashParser = new Parser( Command.standard )
@@ -359,7 +359,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
   }
 
   def listDirectory( dir: Path ) =
-    (Files list dir).iterator.asScala.toList filterNot (_.getFileName.toString startsWith "_") sorted
+    (Files list dir).iterator.asScala.toList sorted
 
   def processDirectory( dir: Path ): Unit = {
     info( s"searching directory for markdown: $dir" )
