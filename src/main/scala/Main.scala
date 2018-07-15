@@ -43,7 +43,7 @@ object Main extends App {
     val srcpath = Paths get src
     val dstpath =
       if (dst eq null)
-        srcpath resolve dst
+        srcpath resolve "dst"
       else
         Paths get dst
     val site = new Builder( srcpath, dstpath, verbose )

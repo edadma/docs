@@ -2,16 +2,16 @@
 package xyz.hyperreal.docs
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Paths, Path, Files, StandardCopyOption}
+import java.nio.file.{Files, Path, Paths, StandardCopyOption}
 
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ArrayBuffer, Buffer, ListBuffer}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.collection.mutable.Buffer
-
 import xyz.hyperreal.yaml
 import xyz.hyperreal.markdown.{Heading, Markdown}
 import xyz.hyperreal.backslash.{AST, Command, Parser, Renderer}
+
+import scala.xml.{Elem, Group, Node}
 
 
 object Builder {
@@ -225,6 +225,61 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
     if (verbose)
       println( msg )
 
+  def headings( doc: Node ) = {
+    case class HeadingMutable( heading: String, id: String, level: Int, subheadings: ListBuffer[HeadingMutable] )
+
+    val buf = HeadingMutable( "", "", 0, new ListBuffer[HeadingMutable] )
+    var trail: List[HeadingMutable] = List( buf )
+
+    def addHeading( n: Node ): Unit = {
+      val level = n.label.substring( 1 ).toInt
+
+      if (level > trail.head.level) {
+        val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
+          new ListBuffer[HeadingMutable] )
+
+        trail.head.subheadings += sub
+        trail = sub :: trail
+      } else if (level == trail.head.level) {
+        val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
+          new ListBuffer[HeadingMutable] )
+
+        trail.tail.head.subheadings += sub
+        trail = sub :: trail.tail
+      } else {
+        val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
+          new ListBuffer[HeadingMutable] )
+
+        do {
+          trail = trail.tail
+        } while (trail.head.level >= level)
+
+        addHeading( n )
+      }
+    }
+
+    def headings( doc: Node ): Unit =
+      doc match {
+        case e@Elem( _, label, attribs, _, child @ _* ) =>
+          label match {
+            case "h1"|"h2"|"h3"|"h4"|"h5"|"h6" => addHeading( e )
+            case _ => child foreach headings
+          }
+        case Group( s ) => s foreach headings
+        case _ =>
+      }
+
+    def list( b: ListBuffer[HeadingMutable] ): List[Heading] =
+      if (b isEmpty)
+        Nil
+      else
+        b map {case HeadingMutable( heading, id, level, subheadings ) =>
+          Heading( heading, id, level, list(subheadings) )} toList
+
+    headings( doc )
+    list( buf.subheadings )
+  }
+
   def processFile( f: Path ): Unit = {
     info( s"reading markdown: $f" )
 
@@ -242,7 +297,12 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
         (Map[String, Any](), s)
     }
 
-    val (md, headings) = Markdown.withHeadings( src )
+    val (md, hs) = {
+      val xml = Markdown.asXML( src )
+
+      (xml.toString, headings( xml ))
+    }
+
     val layout =
       front get "layout" match {
         case None =>
@@ -269,7 +329,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
 
     val vars = front -- Builder.predefinedFrontmatterKeys
 
-    mdFiles += MdFile( sources relativize f.getParent, filename, vars, md, headings, layout )
+    mdFiles += MdFile( sources relativize f.getParent, filename, vars, md, hs, layout )
   }
 
   def scanDirectory( dir: Path ): Unit = {
