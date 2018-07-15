@@ -85,6 +85,20 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
 
     cs toMap
   }
+  val tocmin = configs get "toc" match {
+    case None => 1
+    case Some( m ) => m.asInstanceOf[Map[String, Number]] get "min-level" match {
+      case None => 1
+      case Some( min: Number ) => min.intValue
+    }
+  }
+  val tocmax = configs("settings").asInstanceOf[Map[String, Any]] get "toc" match {
+    case None => 6
+    case Some( m ) => m.asInstanceOf[Map[String, Number]] get "max-level" match {
+      case None => 6
+      case Some( max: Number ) => max.intValue
+    }
+  }
 
   case class MdFile( dir: Path, filename: String, vars: Map[String, Any], md: String, headings: List[Heading], layout: AST )
 
@@ -234,28 +248,29 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
     def addHeading( n: Node ): Unit = {
       val level = n.label.substring( 1 ).toInt
 
-      if (level > trail.head.level) {
-        val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
-          new ListBuffer[HeadingMutable] )
+      if (tocmin <= level && level <= tocmax)
+        if (level > trail.head.level) {
+          val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
+            new ListBuffer[HeadingMutable] )
 
-        trail.head.subheadings += sub
-        trail = sub :: trail
-      } else if (level == trail.head.level) {
-        val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
-          new ListBuffer[HeadingMutable] )
+          trail.head.subheadings += sub
+          trail = sub :: trail
+        } else if (level == trail.head.level) {
+          val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
+            new ListBuffer[HeadingMutable] )
 
-        trail.tail.head.subheadings += sub
-        trail = sub :: trail.tail
-      } else {
-        val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
-          new ListBuffer[HeadingMutable] )
+          trail.tail.head.subheadings += sub
+          trail = sub :: trail.tail
+        } else {
+          val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
+            new ListBuffer[HeadingMutable] )
 
-        do {
-          trail = trail.tail
-        } while (trail.head.level >= level)
+          do {
+            trail = trail.tail
+          } while (trail.head.level >= level)
 
-        addHeading( n )
-      }
+          addHeading( n )
+        }
     }
 
     def headings( doc: Node ): Unit =
