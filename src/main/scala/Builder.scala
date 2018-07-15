@@ -239,12 +239,13 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
     if (verbose)
       println( msg )
 
+  //todo: there needs to two like this: per page and global; can't build up navLinks by just ++
+  case class HeadingMutable( heading: String, id: String, level: Int, subheadings: ListBuffer[HeadingMutable] )
+
+  val buf = HeadingMutable( "", "", 0, new ListBuffer[HeadingMutable] )
+  var trail: List[HeadingMutable] = List( buf )
+
   def headings( doc: Node ) = {
-    case class HeadingMutable( heading: String, id: String, level: Int, subheadings: ListBuffer[HeadingMutable] )
-
-    val buf = HeadingMutable( "", "", 0, new ListBuffer[HeadingMutable] )
-    var trail: List[HeadingMutable] = List( buf )
-
     def addHeading( n: Node ): Unit = {
       val level = n.label.substring( 1 ).toInt
 
@@ -362,7 +363,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
     (Files list dir).iterator.asScala.toList sorted
 
   def processDirectory( dir: Path ): Unit = {
-    info( s"searching directory for markdown: $dir" )
+    info( s"scanning directory for markdown: $dir" )
 
     val contents = listDirectory( dir )
     val subdirectories = contents filter (d => Files.isDirectory(d) && Files.isReadable(d))
