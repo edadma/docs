@@ -4,9 +4,9 @@ package xyz.hyperreal.docs
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths, StandardCopyOption}
 
-import scala.collection.mutable.{ArrayBuffer, Buffer, ListBuffer}
-import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.collection.mutable.{Buffer, ArrayBuffer, ListBuffer, ArrayStack}
+import scala.collection.JavaConverters._
 import xyz.hyperreal.yaml
 import xyz.hyperreal.markdown.{Heading, Markdown}
 import xyz.hyperreal.backslash.{AST, Command, Parser, Renderer}
@@ -242,11 +242,11 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
   //todo: there needs to two like this: per page and global; can't build up navLinks by just ++
   case class HeadingMutable( heading: String, id: String, level: Int, subheadings: ListBuffer[HeadingMutable] )
 
-  val buf = HeadingMutable( "", "", 0, new ListBuffer[HeadingMutable] )
-  var trail: List[HeadingMutable] = List( buf )
+  val sitebuf = HeadingMutable( "", "", 0, new ListBuffer[HeadingMutable] )
+  var sitetrail: ArrayStack[HeadingMutable] = ArrayStack( sitebuf )
 
   def headings( doc: Node ) = {
-    def addHeading( n: Node ): Unit = {
+    def addHeading( n: Node, trail: ArrayStack[HeadingMutable] ): Unit = {
       val level = n.label.substring( 1 ).toInt
 
       if (tocmin <= level && level <= tocmax)
@@ -254,23 +254,24 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
           val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
             new ListBuffer[HeadingMutable] )
 
-          trail.head.subheadings += sub
-          trail = sub :: trail
+          trail.top.subheadings += sub
+          trail push sub
         } else if (level == trail.head.level) {
           val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
             new ListBuffer[HeadingMutable] )
 
-          trail.tail.head.subheadings += sub
-          trail = sub :: trail.tail
+          sitetrail.pop
+          sitetrail.top.subheadings += sub
+          sitetrail push sub
         } else {
           val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
             new ListBuffer[HeadingMutable] )
 
           do {
-            trail = trail.tail
-          } while (trail.head.level >= level)
+            sitetrail.pop
+          } while (sitetrail.top.level >= level)
 
-          addHeading( n )
+          addHeading( n, trail )
         }
     }
 
@@ -278,7 +279,8 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
       doc match {
         case e@Elem( _, label, attribs, _, child @ _* ) =>
           label match {
-            case "h1"|"h2"|"h3"|"h4"|"h5"|"h6" => addHeading( e )
+            case "h1"|"h2"|"h3"|"h4"|"h5"|"h6" =>
+              addHeading( e, sitetrail )
             case _ => child foreach headings
           }
         case Group( s ) => s foreach headings
@@ -293,7 +295,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
           Heading( heading, id, level, list(subheadings) )} toList
 
     headings( doc )
-    list( buf.subheadings )
+    list( sitebuf.subheadings )
   }
 
   def processFile( f: Path ): Unit = {
