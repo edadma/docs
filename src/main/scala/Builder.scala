@@ -8,7 +8,7 @@ import scala.collection.mutable
 import scala.collection.mutable.{Buffer, ArrayBuffer, ListBuffer, ArrayStack}
 import scala.collection.JavaConverters._
 import xyz.hyperreal.yaml
-import xyz.hyperreal.markdown.{Heading, Markdown}
+import xyz.hyperreal.markdown.Markdown
 import xyz.hyperreal.backslash.{AST, Command, Parser, Renderer}
 
 import scala.xml.{Elem, Group, Node}
@@ -106,15 +106,12 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
     }
   }
 
-  case class MdFile( dir: Path, filename: String, vars: Map[String, Any], md: String, headings: List[Heading], layout: AST )
+  case class MdFile( dir: Path, filename: String, vars: Map[String, Any], md: String, headings: Seq[Heading], layout: AST )
 
   val mdFiles = new ArrayBuffer[MdFile]
   val resFiles = new ArrayBuffer[Path]
-  val navLinks = new ArrayBuffer[Link]
   val pagetocMap = new mutable.HashMap[(Path, String), List[Map[String, Any]]]
   val headingtocMap = new mutable.HashMap[String, List[Map[String, Any]]]
-
-  case class Link( path: String, level: Int, heading: String, id: String, sublinks: Buffer[Link] )
 
   def readSources: Unit = {
     configs get "pages" match {
@@ -140,36 +137,22 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
     scanDirectory( sources )
 
     for (MdFile( dir, filename, _, _, headings, _ ) <- mdFiles) {
-      def links( headings: List[Heading] ): Buffer[Link] = //todo: move to top level
-        headings map {
-          case Heading( heading, id, level, subheadings) =>
-            val path =
-              if (dir.toString == "")
-                s"$filename.html"
-              else
-                s"$dir/$filename.html"
+      pagetocMap((dir, filename)) = toc( headings )
 
-            Link( path, level, heading, id, links(subheadings) )
-        } toBuffer
-
-      val pagelinks = links( headings )
-
-      pagetocMap((dir, filename)) = toc( pagelinks )
-
-      for (l <- pagelinks)
+      for (l <- headings)
         headingtocMap(l.heading) = toc( Seq(l) )
     }
   }
 
-  def toc( links: Seq[Link] ): List[Map[String, Any]] =
-    links map {
-      case Link( path, _, heading, id, sublinks ) =>
+  def toc( headings: Seq[Heading] ): List[Map[String, Any]] =
+    headings map {
+      case Heading( path, heading, id, _, sublinks ) =>
         Map( "path" -> path, "heading" -> heading, "id" -> id, "sublinks" -> toc(sublinks))
     } toList
 
   def writeSite: Unit = {
 
-    val sitetoc = toc( navLinks )
+    val sitetoc = toc( sitebuf.subheadings )
     val headingtoc = headingtocMap toMap
 
     create( dstnorm )
@@ -244,35 +227,35 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
     if (verbose)
       println( msg )
 
-  case class HeadingMutable( heading: String, id: String, level: Int, subheadings: ListBuffer[HeadingMutable] )
+  case class Heading( path: String, heading: String, id: String, level: Int, subheadings: ListBuffer[Heading] )
 
-  val sitebuf = HeadingMutable( "", "", 0, new ListBuffer[HeadingMutable] )
-  val sitetrail: ArrayStack[HeadingMutable] = ArrayStack( sitebuf )
+  val sitebuf = Heading( "", "", "", 0, new ListBuffer[Heading] )
+  val sitetrail: ArrayStack[Heading] = ArrayStack( sitebuf )
 
-  def headings( doc: Node ) = {
-    val pagebuf = HeadingMutable( "", "", 0, new ListBuffer[HeadingMutable] )
-    val pagetrail: ArrayStack[HeadingMutable] = ArrayStack( pagebuf )
+  def headings( path: String, doc: Node ) = {
+    val pagebuf = Heading( path, "", "", 0, new ListBuffer[Heading] )
+    val pagetrail: ArrayStack[Heading] = ArrayStack( pagebuf )
 
-    def addHeading( n: Node, trail: ArrayStack[HeadingMutable] ): Unit = {
+    def addHeading( n: Node, trail: ArrayStack[Heading] ): Unit = {
       val level = n.label.substring( 1 ).toInt
 
       if (tocmin <= level && level <= tocmax)
         if (level > trail.head.level) {
-          val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
-            new ListBuffer[HeadingMutable] )
+          val sub = Heading( path, n.child.mkString, n.attribute("id").get.mkString, level,
+            new ListBuffer[Heading] )
 
           trail.top.subheadings += sub
           trail push sub
         } else if (level == trail.head.level) {
-          val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
-            new ListBuffer[HeadingMutable] )
+          val sub = Heading( path, n.child.mkString, n.attribute("id").get.mkString, level,
+            new ListBuffer[Heading] )
 
           trail.pop
           trail.top.subheadings += sub
           trail push sub
         } else {
-          val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
-            new ListBuffer[HeadingMutable] )
+          val sub = Heading( path, n.child.mkString, n.attribute("id").get.mkString, level,
+            new ListBuffer[Heading] )
 
           do {
             trail.pop
@@ -295,15 +278,8 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
         case _ =>
       }
 
-    def list( b: ListBuffer[HeadingMutable] ): List[Heading] =
-      if (b isEmpty)
-        Nil
-      else
-        b map {case HeadingMutable( heading, id, level, subheadings ) =>
-          Heading( heading, id, level, list(subheadings) )} toList
-
     headings( doc )
-    list( pagebuf.subheadings )
+    pagebuf.subheadings
   }
 
   def processMarkdownFile( f: Path ): Unit = {
@@ -323,10 +299,16 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
         (Map[String, Any](), s)
     }
 
+    val dir = sources relativize f.getParent
     val (md, hs) = {
       val xml = Markdown.asXML( src )
+      val path =
+        if (dir.toString == "")
+          s"$filename.html"
+        else
+          s"$dir/$filename.html"
 
-      (xml.toString, headings( xml ))
+      (xml.toString, headings( path, xml ))
     }
 
     val layout =
@@ -355,7 +337,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
 
     val vars = front -- Builder.predefinedFrontmatterKeys
 
-    mdFiles += MdFile( sources relativize f.getParent, filename, vars, md, hs, layout )
+    mdFiles += MdFile( dir, filename, vars, md, hs, layout )
   }
 
   def scanDirectory( dir: Path ): Unit = {
