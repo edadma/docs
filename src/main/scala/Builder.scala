@@ -5,13 +5,13 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths, StandardCopyOption}
 
 import scala.collection.mutable
-import scala.collection.mutable.{Buffer, ArrayBuffer, ListBuffer, ArrayStack}
+import scala.collection.mutable.{ArrayBuffer, ArrayStack, Buffer, ListBuffer}
 import scala.collection.JavaConverters._
 import xyz.hyperreal.yaml
 import xyz.hyperreal.markdown.Markdown
 import xyz.hyperreal.backslash.{AST, Command, Parser, Renderer}
 
-import scala.xml.{Elem, Group, Node}
+import scala.xml.{Elem, Group, Node, Text}
 
 
 object Builder {
@@ -236,25 +236,33 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
     val pagebuf = Heading( path, "", "", 0, new ListBuffer[Heading] )
     val pagetrail: ArrayStack[Heading] = ArrayStack( pagebuf )
 
+    def text( n: Node ): String = {
+      n match {
+        case Group( ns ) => ns map text mkString
+        case Text( t ) => t
+        case e => e.child map text mkString
+      }
+    }
+
     def addHeading( n: Node, trail: ArrayStack[Heading] ): Unit = {
       val level = n.label.substring( 1 ).toInt
 
       if (tocmin <= level && level <= tocmax)
         if (level > trail.head.level) {
-          val sub = Heading( path, n.child.mkString, n.attribute("id").get.mkString, level,
+          val sub = Heading( path, text(n), n.attribute("id").get.mkString, level,
             new ListBuffer[Heading] )
 
           trail.top.subheadings += sub
           trail push sub
         } else if (level == trail.head.level) {
-          val sub = Heading( path, n.child.mkString, n.attribute("id").get.mkString, level,
+          val sub = Heading( path, text(n), n.attribute("id").get.mkString, level,
             new ListBuffer[Heading] )
 
           trail.pop
           trail.top.subheadings += sub
           trail push sub
         } else {
-          val sub = Heading( path, n.child.mkString, n.attribute("id").get.mkString, level,
+          val sub = Heading( path, text(n), n.attribute("id").get.mkString, level,
             new ListBuffer[Heading] )
 
           do {
