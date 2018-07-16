@@ -74,16 +74,22 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
   info( s"processing configs: $configdir" )
 
   val configs = {
-    val yamls = (Files list configdir).iterator.asScala.toList.filter (p => Files.isRegularFile(p) && Files.isReadable(p) && p.getFileName.toString.endsWith(".yml"))
+    val yamls = (Files list configdir).iterator.asScala.toList.filter (p => Files.isRegularFile(p) &&
+      Files.isReadable(p) && (p.getFileName.toString.endsWith(".yml") || p.getFileName.toString.endsWith(".yaml")))
     val cs =
       for (l <- yamls)
         yield {
           info( s"reading config: $l" )
 
-          (withoutExtension(l.getFileName.toString), yaml.read( io.Source.fromFile(l.toFile) ).head)
+          val yml = new String( Files readAllBytes l, StandardCharsets.UTF_8 ) trim
+
+          if (yml isEmpty)
+            Nil
+          else
+            List( (withoutExtension(l.getFileName.toString), yaml.read( yml ).head) )
         }
 
-    cs toMap
+    cs.flatten toMap
   }
   val tocmin = configs get "toc" match {
     case None => 1
