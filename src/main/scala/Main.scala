@@ -32,8 +32,9 @@ object Main extends App {
         t
       case ("-h"|"-help"|"--help") :: _ => usage( 0 )
       case s :: _ if s startsWith "-" => sys.error( s"invalid switch $s" )
-      case file :: t =>
-        src = file
+      case path :: t =>
+        check( src == null, s"duplicate source path: $path" )
+        src = path
         t
     }
 

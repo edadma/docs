@@ -22,7 +22,7 @@ object Builder {
 
 class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
 
-  val srcnorm = src.normalize
+  val srcnorm = src.normalize.toAbsolutePath
 
   check( Files exists srcnorm, s"source does not exist: $srcnorm" )
   check( Files isDirectory srcnorm, s"source path is not a directory: $srcnorm" )
@@ -131,7 +131,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
             if (!(Files.exists(md) && Files.isRegularFile(md) && Files.isReadable(md)))
               problem( s"markdown file not found or is not readable: $md" )
 
-            processFile( md )
+            processMarkdownFile( md )
           }
         }
       case _ => problem( "expected list of paths for 'pages' configuration" )
@@ -140,7 +140,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
     scanDirectory( sources )
 
     for (MdFile( dir, filename, _, _, headings, _ ) <- mdFiles) {
-      def links( headings: List[Heading] ): Buffer[Link] =
+      def links( headings: List[Heading] ): Buffer[Link] = //todo: move to top level
         headings map {
           case Heading( heading, id, level, subheadings) =>
             val path =
@@ -154,7 +154,6 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
 
       val pagelinks = links( headings )
 
-      navLinks ++= pagelinks
       pagetocMap((dir, filename)) = toc( pagelinks )
 
       for (l <- pagelinks)
@@ -245,13 +244,15 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
     if (verbose)
       println( msg )
 
-  //todo: there needs to two like this: per page and global; can't build up navLinks by just ++
   case class HeadingMutable( heading: String, id: String, level: Int, subheadings: ListBuffer[HeadingMutable] )
 
   val sitebuf = HeadingMutable( "", "", 0, new ListBuffer[HeadingMutable] )
-  var sitetrail: ArrayStack[HeadingMutable] = ArrayStack( sitebuf )
+  val sitetrail: ArrayStack[HeadingMutable] = ArrayStack( sitebuf )
 
   def headings( doc: Node ) = {
+    val pagebuf = HeadingMutable( "", "", 0, new ListBuffer[HeadingMutable] )
+    val pagetrail: ArrayStack[HeadingMutable] = ArrayStack( pagebuf )
+
     def addHeading( n: Node, trail: ArrayStack[HeadingMutable] ): Unit = {
       val level = n.label.substring( 1 ).toInt
 
@@ -266,16 +267,16 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
           val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
             new ListBuffer[HeadingMutable] )
 
-          sitetrail.pop
-          sitetrail.top.subheadings += sub
-          sitetrail push sub
+          trail.pop
+          trail.top.subheadings += sub
+          trail push sub
         } else {
           val sub = HeadingMutable( n.child.mkString, n.attribute("id").get.mkString, level,
             new ListBuffer[HeadingMutable] )
 
           do {
-            sitetrail.pop
-          } while (sitetrail.top.level >= level)
+            trail.pop
+          } while (trail.top.level >= level)
 
           addHeading( n, trail )
         }
@@ -286,6 +287,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
         case e@Elem( _, label, attribs, _, child @ _* ) =>
           label match {
             case "h1"|"h2"|"h3"|"h4"|"h5"|"h6" =>
+              addHeading( e, pagetrail )
               addHeading( e, sitetrail )
             case _ => child foreach headings
           }
@@ -301,10 +303,10 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
           Heading( heading, id, level, list(subheadings) )} toList
 
     headings( doc )
-    list( sitebuf.subheadings )
+    list( pagebuf.subheadings )
   }
 
-  def processFile( f: Path ): Unit = {
+  def processMarkdownFile( f: Path ): Unit = {
     info( s"reading markdown: $f" )
 
     val filename = withoutExtension( f.getFileName.toString )
@@ -371,7 +373,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
     (Files list dir).iterator.asScala.toList sorted
 
   def processDirectory( dir: Path ): Unit = {
-    info( s"scanning directory for markdown: $dir" )
+    info( s"scanning directory for sources: $dir" )
 
     val contents = listDirectory( dir )
     val subdirectories = contents filter (d => Files.isDirectory(d) && Files.isReadable(d))
@@ -379,7 +381,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
     val mds = files filter (f => f.getFileName.toString.endsWith(".md"))
 
     if (mds nonEmpty)
-      mds foreach processFile
+      mds foreach processMarkdownFile
 
     subdirectories foreach processDirectory
   }
