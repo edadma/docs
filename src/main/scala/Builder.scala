@@ -91,7 +91,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
 
     cs.flatten toMap
   }
-  val tocmin = configs get "toc" match {
+  val tocmin = configs("settings").asInstanceOf[Map[String, Any]] get "toc" match {
     case None => 1
     case Some( m ) => m.asInstanceOf[Map[String, Number]] get "min-level" match {
       case None => 1
