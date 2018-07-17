@@ -1,8 +1,17 @@
-pre > code {
+.normal-code > pre > code {
   background-color: #eee;
-  border: 1px solid #999;
+  border: 1px solid rgba(0,0,0,.125);
+  border-radius: .25rem;
   display: block;
   padding: 15px;
+}
+
+.captioned-code {
+  background-color: #eee;
+}
+
+.captioned-code > pre > code {
+  display: block;
 }
 
 code {
@@ -35,5 +44,5 @@ code {
     position: fixed;
     max-height: 100%;
     overflow-x: hidden;
-    overflow-y: scroll;
+    overflow-y: auto;
 }
