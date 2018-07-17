@@ -30,3 +30,10 @@ code {
 .nav > li > ul > li > ul > li > ul > li > ul > li > ul > li a {
   text-indent: 100px;
 }
+
+.sidenav {
+    position: fixed;
+    max-height: 100%;
+    overflow-x: hidden;
+    overflow-y: scroll;
+}

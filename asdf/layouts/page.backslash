@@ -12,6 +12,7 @@
         <main role="main" class="container">
             <div class="row">
                 <div class="col-3">
+                <div class="sidenav">
                     \def nav links {
                         <ul class="nav flex-column">
 
@@ -28,6 +29,7 @@
                     }
 
                     \nav\sitetoc
+                </div>
                 </div>
 
                 <div class="col-9">
