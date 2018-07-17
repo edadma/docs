@@ -64,8 +64,8 @@ object Main extends App {
         |Docs v0.1
         |Usage: java -jar docs-0.1.jar init <document path> <theme>
         |                              [<-c|-v>] <source path> [<target path>]
-        |                                -c clean target directory
-        |                                -v verbose output
+        |                                -c  clean target directory
+        |                                -v  verbose output
       """.trim.stripMargin )
     sys.exit( st )
   }
