@@ -20,7 +20,7 @@ object Builder {
 
 }
 
-class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
+class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) {
 
   val srcnorm = src.normalize.toAbsolutePath
 
@@ -28,7 +28,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
   check( Files isDirectory srcnorm, s"source path is not a directory: $srcnorm" )
   check( Files isReadable srcnorm, s"source directory is unreadable: $srcnorm" )
 
-  val dstnorm = dst.normalize
+  val dstnorm = dst.normalize.toAbsolutePath
   val backslashConfig =
     Map(
       "today" -> "MMMM d, y",
@@ -233,10 +233,14 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
 
   def build: Unit = {
     readSources
+
+    if (clean)
+      cleanSite
+
     writeSite
   }
 
-  def clean: Unit = {
+  def cleanSite: Unit = {
     def clean( dir: Path ): Unit = {
       for (f <- (Files list dir).iterator.asScala) {
         if (Files isDirectory f)
@@ -248,8 +252,10 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
       Files delete dir
     }
 
-    if (Files exists dstnorm)
+    if (Files exists dstnorm) {
+      info( s"cleaning target directory: $dstnorm" )
       clean( dstnorm )
+    }
   }
 
   def withoutExtension( s: String ) =

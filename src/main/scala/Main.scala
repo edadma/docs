@@ -13,6 +13,7 @@ object Main extends App {
     usage( 1 )
 
   var verbose = false
+  var clean = false
   var src: String = null
   var dst: String = null
 
@@ -26,6 +27,9 @@ object Main extends App {
         sys.exit
       case "-v" :: t =>
         verbose = true
+        t
+      case "-c" :: t =>
+        clean = true
         t
       case "-o" :: d :: t =>
         dst = d
@@ -47,7 +51,7 @@ object Main extends App {
         srcpath resolve "dst"
       else
         Paths get dst
-    val site = new Builder( srcpath, dstpath, verbose )
+    val site = new Builder( srcpath, dstpath, verbose, clean )
 
     site.build
   } catch {
@@ -59,7 +63,9 @@ object Main extends App {
       """
         |Docs v0.1
         |Usage: java -jar docs-0.1.jar init <document path> <theme>
-        |                              [<options>] <source path> [<destination path>]
+        |                              [<-c|-v>] <source path> [<target path>]
+        |                                -c clean target directory
+        |                                -v verbose output
       """.trim.stripMargin )
     sys.exit( st )
   }
