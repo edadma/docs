@@ -146,8 +146,8 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
 
   def toc( headings: Seq[Heading] ): List[Map[String, Any]] =
     headings map {
-      case Heading( path, heading, id, _, sublinks ) =>
-        Map( "path" -> path, "heading" -> heading, "id" -> id, "sublinks" -> toc(sublinks))
+      case Heading( path, heading, id, level, sublinks ) =>
+        Map( "path" -> path, "heading" -> heading, "id" -> id, "level" -> level, "sublinks" -> toc(sublinks))
     } toList
 
   def writeSite: Unit = {
