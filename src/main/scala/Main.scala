@@ -58,7 +58,8 @@ object Main extends App {
     println(
       """
         |Docs v0.1
-        |Usage: java -jar docs-0.1.jar <document folder> [<destination folder>]
+        |Usage: java -jar docs-0.1.jar init <document path> <theme>
+        |                              [<options>] <source path> [<destination path>]
       """.trim.stripMargin )
     sys.exit( st )
   }

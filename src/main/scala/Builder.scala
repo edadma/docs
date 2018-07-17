@@ -91,19 +91,9 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
 
     cs.flatten toMap
   }
-  val tocmin = configs("settings").asInstanceOf[Map[String, Any]] get "toc" match {
-    case None => 1
-    case Some( m ) => m.asInstanceOf[Map[String, Number]] get "min-level" match {
-      case None => 1
-      case Some( min: Number ) => min.intValue
-    }
-  }
-  val tocmax = configs("settings").asInstanceOf[Map[String, Any]] get "toc" match {
-    case None => 6
-    case Some( m ) => m.asInstanceOf[Map[String, Number]] get "max-level" match {
-      case None => 6
-      case Some( max: Number ) => max.intValue
-    }
+  val settings = configs get "settings" match {
+    case Some( s: Map[_, _] ) => s
+    case _ => problem( s"'settings' object not found in configs" )
   }
 
   case class MdFile( dir: Path, filename: String, vars: Map[String, Any], md: String, headings: Seq[Heading], layout: AST )
@@ -112,6 +102,51 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
   val resFiles = new ArrayBuffer[Path]
   val pagetocMap = new mutable.HashMap[(Path, String), List[Map[String, Any]]]
   val headingtocMap = new mutable.HashMap[String, List[Map[String, Any]]]
+
+  def getValue( store: Any, name: String ) = {
+    val fields = name split "\\." toList
+
+    def getField( v: Any, fs: List[String] ): Option[Any] =
+      (v, fs) match {
+        case (_, Nil) => Some( v )
+        case (m: Map[_, _], n :: t) =>
+          m.asInstanceOf[Map[String, Any]] get n match {
+            case None => None
+            case Some( m1 ) => getField( m1, t )
+          }
+        case (_, n :: t) => problem( s"invalid field name: $n in $name" )
+      }
+
+    getField( store, fields )
+  }
+
+  def getIntOption( store: Any, name: String ) =
+    getValue( store, name ) match {
+      case None => None
+      case Some( v: BigDecimal ) if v.isValidInt => Some( v.intValue )
+      case Some( v ) => problem( s"expected int, got $v for $name" )
+    }
+
+  def getInt( store: Any, name: String ) =
+    getIntOption( store, name ) match {
+      case None => problem( s"required field $name not found" )
+      case Some( v ) => v
+    }
+
+  def getIntDefault( store: Any, name: String, default: Int ) =
+    getIntOption( store, name ) match {
+      case None => default
+      case Some( v ) => v
+    }
+
+  def getConfigInt( front: Map[String, Any], name: String, default: Int ) =
+    getIntOption( front, name ) match {
+      case None => getIntDefault( settings, name, default )
+    }
+
+  def tocmin( front: Map[String, Any] ) = getConfigInt( front, "toc.min-level", 1 )
+
+  def tocmax( front: Map[String, Any] ) = getConfigInt( front, "toc.max-level", 6 )
 
   def readSources: Unit = {
     configs get "pages" match {
@@ -232,7 +267,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
   val sitebuf = Heading( "", "", "", 0, new ListBuffer[Heading] )
   val sitetrail: ArrayStack[Heading] = ArrayStack( sitebuf )
 
-  def headings( path: String, doc: Node ) = {
+  def headings( path: String, doc: Node, tocmin: Int, tocmax: Int ) = {
     val pagebuf = Heading( path, "", "", 0, new ListBuffer[Heading] )
     val pagetrail: ArrayStack[Heading] = ArrayStack( pagebuf )
 
@@ -316,7 +351,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false ) {
         else
           s"$dir/$filename.html"
 
-      (xml.toString, headings( path, xml ))
+      (xml.toString, headings( path, xml, tocmin(front), tocmax(front) ))
     }
 
     val layout =
