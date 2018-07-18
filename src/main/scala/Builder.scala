@@ -148,7 +148,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
 
   def tocmax( front: Map[String, Any] ) = getConfigInt( front, "toc.max-level", 6 )
 
-  def readStructure( struct: Any ) =
+  def readStructure( struct: Any ): Unit =
     struct match {
       case pgs: List[_] =>
         pgs foreach {
@@ -164,18 +164,19 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
                 problem( s"markdown file not found or is not readable: $md" )
 
               processMarkdownFile( md )
+              println( sitebuf)
             }
           case h: Map[_, _] => readStructure( h )
         }
       case hds: Map[_, _] =>
         hds foreach {
-          case (k: String, v) =>
-            addHeading( 0, "", k )
-          }
+          case (k: String, v) => addHeading( 0, "", k, "", sitetrail )
+        }
+        println(sitebuf)
     }
 
   def readSources: Unit = {
-    configs get "structure" match {
+    configs get "document" match {
       case None => processDirectory( sources )
       case Some( s ) => readStructure( s )
     }
