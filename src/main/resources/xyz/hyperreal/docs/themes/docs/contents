@@ -1,7 +1,8 @@
-config/pages.yml
+config/document.yml
 config/settings.yml
+config/globals.yml
 layouts/page.backslash
 src/css/bootstrap.min.css
 src/css/docs.css
 src/css/manni.css
-src/js/bootstrap.min.js
+src/js/bootstrap.bundle.min.js

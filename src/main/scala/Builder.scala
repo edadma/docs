@@ -123,7 +123,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
   def getIntOption( store: Any, name: String ) =
     getValue( store, name ) match {
       case None => None
-      case Some( v: BigDecimal ) if v.isValidInt => Some( v.intValue )
+      case Some( v: Int ) => Some( v )
       case Some( v ) => problem( s"expected int, got $v for $name" )
     }
 
