@@ -18,7 +18,7 @@
 
                             \for links {
                                 <li class="nav-item">
-                                    <a class="nav-link" href="\path#\id">\heading</a>
+                                    <a class="nav-link" href="\path\if \nonEmpty\id {#\id}">\heading</a>
 
                                     \if \nonEmpty\sublinks
                                         \nav\sublinks

@@ -144,29 +144,40 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
       case None => getIntDefault( settings, name, default )
     }
 
-  def tocmin( front: Map[String, Any] ) = getConfigInt( front, "toc.min-level", 1 )
+  def tocmin( front: Map[String, Any] ) = getConfigInt( front, "toc.min-level", 0 )
 
   def tocmax( front: Map[String, Any] ) = getConfigInt( front, "toc.max-level", 6 )
 
-  def readSources: Unit = {
-    configs get "pages" match {
-      case None => processDirectory( sources )
-      case Some( pgs: List[_] ) if pgs.forall(_.isInstanceOf[String]) =>
-        for (p <- pgs.asInstanceOf[List[String]]) {
-          val folder = sources resolve Paths.get( p )
+  def readStructure( struct: Any ) =
+    struct match {
+      case pgs: List[_] =>
+        pgs foreach {
+          case p: String =>
+            val folder = sources resolve Paths.get( p )
 
-          if (Files.exists( folder ) && Files.isDirectory( folder ) && Files.isReadable( folder ))
-            processDirectory( folder )
-          else {
-            val md = sources resolve Paths.get( s"$p.md" )
+            if (Files.exists( folder ) && Files.isDirectory( folder ) && Files.isReadable( folder ))
+              processDirectory( folder )
+            else {
+              val md = sources resolve Paths.get( s"$p.md" )
 
-            if (!(Files.exists(md) && Files.isRegularFile(md) && Files.isReadable(md)))
-              problem( s"markdown file not found or is not readable: $md" )
+              if (!(Files.exists(md) && Files.isRegularFile(md) && Files.isReadable(md)))
+                problem( s"markdown file not found or is not readable: $md" )
 
-            processMarkdownFile( md )
-          }
+              processMarkdownFile( md )
+            }
+          case h: Map[_, _] => readStructure( h )
         }
-      case _ => problem( "expected list of paths for 'pages' configuration" )
+      case hds: Map[_, _] =>
+        hds foreach {
+          case (k: String, v) =>
+            addHeading( 0, "", k )
+          }
+    }
+
+  def readSources: Unit = {
+    configs get "structure" match {
+      case None => processDirectory( sources )
+      case Some( s ) => readStructure( s )
     }
 
     scanDirectory( sources )
@@ -270,11 +281,11 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
 
   case class Heading( path: String, heading: String, id: String, level: Int, subheadings: ListBuffer[Heading] )
 
-  val sitebuf = Heading( "", "", "", 0, new ListBuffer[Heading] )
+  val sitebuf = Heading( "", "", "", -1, new ListBuffer[Heading] )
   val sitetrail: ArrayStack[Heading] = ArrayStack( sitebuf )
 
   def headings( path: String, doc: Node, tocmin: Int, tocmax: Int ) = {
-    val pagebuf = Heading( path, "", "", 0, new ListBuffer[Heading] )
+    val pagebuf = Heading( path, "", "", -1, new ListBuffer[Heading] )
     val pagetrail: ArrayStack[Heading] = ArrayStack( pagebuf )
 
     def text( n: Node ): String = {
@@ -285,33 +296,11 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
       }
     }
 
-    def addHeading( n: Node, trail: ArrayStack[Heading] ): Unit = {
+    def addNodeHeading( n: Node, trail: ArrayStack[Heading] ): Unit = {
       val level = n.label.substring( 1 ).toInt
 
       if (tocmin <= level && level <= tocmax)
-        if (level > trail.head.level) {
-          val sub = Heading( path, text(n), n.attribute("id").get.mkString, level,
-            new ListBuffer[Heading] )
-
-          trail.top.subheadings += sub
-          trail push sub
-        } else if (level == trail.head.level) {
-          val sub = Heading( path, text(n), n.attribute("id").get.mkString, level,
-            new ListBuffer[Heading] )
-
-          trail.pop
-          trail.top.subheadings += sub
-          trail push sub
-        } else {
-          val sub = Heading( path, text(n), n.attribute("id").get.mkString, level,
-            new ListBuffer[Heading] )
-
-          do {
-            trail.pop
-          } while (trail.top.level >= level)
-
-          addHeading( n, trail )
-        }
+        addHeading( level, path, text(n), n.attribute("id").get.mkString, trail )
     }
 
     def headings( doc: Node ): Unit =
@@ -319,8 +308,8 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
         case e@Elem( _, label, attribs, _, child @ _* ) =>
           label match {
             case "h1"|"h2"|"h3"|"h4"|"h5"|"h6" =>
-              addHeading( e, pagetrail )
-              addHeading( e, sitetrail )
+              addNodeHeading( e, pagetrail )
+              addNodeHeading( e, sitetrail )
             case _ => child foreach headings
           }
         case Group( s ) => s foreach headings
@@ -329,6 +318,29 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
 
     headings( doc )
     pagebuf.subheadings
+  }
+
+  def addHeading( level: Int, path: String, text: String, id: String, trail: ArrayStack[Heading] ): Unit = {
+    if (level > trail.head.level) {
+      val sub = Heading( path, text, id, level, new ListBuffer[Heading] )
+
+      trail.top.subheadings += sub
+      trail push sub
+    } else if (level == trail.head.level) {
+      val sub = Heading( path, text, id, level, new ListBuffer[Heading] )
+
+      trail.pop
+      trail.top.subheadings += sub
+      trail push sub
+    } else {
+      val sub = Heading( path, text, id, level, new ListBuffer[Heading] )
+
+      do {
+        trail.pop
+      } while (trail.top.level >= level)
+
+      addHeading( level, path, text, id, trail )
+    }
   }
 
   def processMarkdownFile( f: Path ): Unit = {
