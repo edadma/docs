@@ -164,7 +164,6 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
                 problem( s"markdown file not found or is not readable: $md" )
 
               processMarkdownFile( md )
-              println( sitebuf)
             }
           case h: Map[_, _] => readStructure( h )
         }
@@ -172,7 +171,6 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
         hds foreach {
           case (k: String, v) => addHeading( 0, "", k, "", sitetrail )
         }
-        println(sitebuf)
     }
 
   def readSources: Unit = {
