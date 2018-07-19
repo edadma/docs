@@ -12,28 +12,32 @@
         <main role="main" class="container">
             <div class="row">
                 <div class="col-3">
-                <div class="sidenav">
-                    \def nav links {
-                        <ul class="nav flex-column">
+                  <div class="sidenav">
+                      \def nav links {
+                          <ul class="nav flex-column">
 
-                            \for links {
-                                <li class="nav-item">
-                                    \if \isEmpty\path {
-                                        <strong>\heading</strong>
-                                    } \else {
-                                        <a class="nav-link" href="\path\if \nonEmpty\id {#\id}">\heading</a>
-                                    }
+                              \for links {
+                                  <li class="nav-item">
+                                      \if \isEmpty\path {
+                                          <strong>\heading</strong>
+                                      } \else {
+                                        \if \nonEmpty\id {
+                                          <a class="nav-link" href="\path#\id">\heading</a>
+                                        } \else {
+                                          <a class="nav-link\if\=\pagepath\path { active}" href="\path">\heading</a>
+                                        }
+                                      }
 
-                                    \if \nonEmpty\sublinks
-                                        \nav\sublinks
-                                </li>
-                            }
+                                      \if \nonEmpty\sublinks
+                                          \nav\sublinks
+                                  </li>
+                              }
 
-                        </ul>
-                    }
+                          </ul>
+                      }
 
-                    \nav\sitetoc
-                </div>
+                      \nav\sitetoc
+                  </div>
                 </div>
 
                 <div class="col-9">

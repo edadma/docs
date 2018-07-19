@@ -213,7 +213,8 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
           "toc" -> pagetoc,
           "headingtoc" -> headingtoc,
           "sitetoc" -> sitetoc,
-          "base" -> base
+          "base" -> base,
+          "pagepath" -> s"$dir/$filename.html"
         ) ++ configs )
 
       create( dstdir )
