@@ -144,10 +144,6 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
       case None => getIntDefault( settings, name, default )
     }
 
-  def tocmin( front: Map[String, Any] ) = getConfigInt( front, "toc.min-level", 0 )
-
-  def tocmax( front: Map[String, Any] ) = getConfigInt( front, "toc.max-level", 6 )
-
   def readStructure( struct: Any ): Unit =
     struct match {
       case pgs: List[_] =>
@@ -284,7 +280,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
   val sitebuf = Heading( "", "", "", -1, new ListBuffer[Heading] )
   val sitetrail: ArrayStack[Heading] = ArrayStack( sitebuf )
 
-  def headings( path: String, doc: Node, tocmin: Int, tocmax: Int ) = {
+  def headings( path: String, doc: Node, front: Map[String, Any] ) = {
     val pagebuf = Heading( path, "", "", -1, new ListBuffer[Heading] )
     val pagetrail: ArrayStack[Heading] = ArrayStack( pagebuf )
 
@@ -296,7 +292,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
       }
     }
 
-    def addNodeHeading( n: Node, trail: ArrayStack[Heading] ): Unit = {
+    def addNodeHeading( n: Node, trail: ArrayStack[Heading], tocmin: Int, tocmax: Int ): Unit = {
       val level = n.label.substring( 1 ).toInt
 
       if (tocmin <= level && level <= tocmax)
@@ -308,8 +304,8 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
         case e@Elem( _, label, attribs, _, child @ _* ) =>
           label match {
             case "h1"|"h2"|"h3"|"h4"|"h5"|"h6" =>
-              addNodeHeading( e, pagetrail )
-              addNodeHeading( e, sitetrail )
+              addNodeHeading( e, pagetrail, getConfigInt(front, "pagetoc.min-level", 0), getConfigInt(front, "pagetoc.max-level", 6) )
+              addNodeHeading( e, sitetrail, getConfigInt(front, "toc.min-level", 0), getConfigInt(front, "toc.max-level", 6) )
             case _ => child foreach headings
           }
         case Group( s ) => s foreach headings
@@ -369,7 +365,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
         else
           s"$dir/$filename.html"
 
-      (xml.toString, headings( path, xml, tocmin(front), tocmax(front) ))
+      (xml.toString, headings( path, xml, front ))
     }
 
     val layout =
