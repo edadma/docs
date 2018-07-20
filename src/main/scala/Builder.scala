@@ -5,11 +5,11 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths, StandardCopyOption}
 
 import scala.collection.mutable
-import scala.collection.mutable.{ArrayBuffer, ArrayStack, Buffer, ListBuffer}
+import scala.collection.mutable.{ArrayBuffer, ArrayStack, ListBuffer}
 import scala.collection.JavaConverters._
-import xyz.hyperreal.yaml
+import xyz.hyperreal.{backslash, yaml, markdown}
 import xyz.hyperreal.markdown.{HeadingAST, Markdown, SeqAST, Util}
-import xyz.hyperreal.backslash.{AST, Command, Parser, Renderer}
+import xyz.hyperreal.backslash.{Command, Parser, Renderer}
 
 import scala.xml.{Elem, Group, Node, Text}
 
@@ -96,7 +96,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
     case _ => problem( s"'settings' object not found in configs" )
   }
 
-  case class MdFile( dir: Path, filename: String, vars: Map[String, Any], md: String, headings: Seq[Heading], layout: AST )
+  case class MdFile( dir: Path, filename: String, vars: Map[String, Any], md: String, headings: Seq[Heading], layout: backslash.AST )
 
   val mdFiles = new ArrayBuffer[MdFile]
   val resFiles = new ArrayBuffer[Path]
@@ -280,32 +280,19 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
   val sitebuf = Heading( "", "", "", -1, new ListBuffer[Heading] )
   val sitetrail: ArrayStack[Heading] = ArrayStack( sitebuf )
 
-  def headings( path: String, doc: Node, front: Map[String, Any] ) = {
+  def headings( path: String, doc: markdown.AST, front: Map[String, Any] ) = {
     val pagebuf = Heading( path, "", "", -1, new ListBuffer[Heading] )
     val pagetrail: ArrayStack[Heading] = ArrayStack( pagebuf )
 
-    def text( n: Node ): String = {
-      n match {
-        case Group( ns ) => ns map text mkString
-        case Text( t ) => t
-        case e => e.child map text mkString
-      }
-    }
-
-    def addNodeHeading( n: Node, trail: ArrayStack[Heading], tocmin: Int, tocmax: Int ): Unit = {
-      val level = n.label.substring( 1 ).toInt
-
+    def addNodeHeading( level: Int, text: String, id: String, trail: ArrayStack[Heading], tocmin: Int, tocmax: Int ): Unit =
       if (tocmin <= level && level <= tocmax)
-        addHeading( level, path, text(n), n.attribute("id").get.mkString, trail )
-    }
+        addHeading( level, path, text, id, trail )
 
-    def headings( doc: AST ): Unit =
+    def headings( doc: markdown.AST ): Unit =
       doc match {
         case HeadingAST( level, contents, id ) =>
-              addNodeHeading( e, pagetrail, getConfigInt(front, "pagetoc.min-level", 0), getConfigInt(front, "pagetoc.max-level", 6) )
-              addNodeHeading( e, sitetrail, getConfigInt(front, "toc.min-level", 0), getConfigInt(front, "toc.max-level", 6) )
-            case _ => child foreach headings
-          }
+              addNodeHeading( level, Util.text(contents), id.get, pagetrail, getConfigInt(front, "pagetoc.min-level", 0), getConfigInt(front, "pagetoc.max-level", 6) )
+              addNodeHeading( level, Util.text(contents), id.get, sitetrail, getConfigInt(front, "toc.min-level", 0), getConfigInt(front, "toc.max-level", 6) )
         case SeqAST( s ) => s foreach headings
         case _ =>
       }
