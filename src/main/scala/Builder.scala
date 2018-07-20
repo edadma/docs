@@ -8,7 +8,7 @@ import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, ArrayStack, Buffer, ListBuffer}
 import scala.collection.JavaConverters._
 import xyz.hyperreal.yaml
-import xyz.hyperreal.markdown.Markdown
+import xyz.hyperreal.markdown.{HeadingAST, Markdown, SeqAST, Util}
 import xyz.hyperreal.backslash.{AST, Command, Parser, Renderer}
 
 import scala.xml.{Elem, Group, Node, Text}
@@ -299,16 +299,14 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
         addHeading( level, path, text(n), n.attribute("id").get.mkString, trail )
     }
 
-    def headings( doc: Node ): Unit =
+    def headings( doc: AST ): Unit =
       doc match {
-        case e@Elem( _, label, attribs, _, child @ _* ) =>
-          label match {
-            case "h1"|"h2"|"h3"|"h4"|"h5"|"h6" =>
+        case HeadingAST( level, contents, id ) =>
               addNodeHeading( e, pagetrail, getConfigInt(front, "pagetoc.min-level", 0), getConfigInt(front, "pagetoc.max-level", 6) )
               addNodeHeading( e, sitetrail, getConfigInt(front, "toc.min-level", 0), getConfigInt(front, "toc.max-level", 6) )
             case _ => child foreach headings
           }
-        case Group( s ) => s foreach headings
+        case SeqAST( s ) => s foreach headings
         case _ =>
       }
 
@@ -358,14 +356,14 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
 
     val dir = sources relativize f.getParent
     val (md, hs) = {
-      val xml = Markdown.asXML( src )
+      val doc = Markdown( src )
       val path =
         if (dir.toString == "")
           s"$filename.html"
         else
           s"$dir/$filename.html"
 
-      (xml.toString, headings( path, xml, front ))
+      (Util.html( doc, 2, null ), headings( path, doc, front ))
     }
 
     val layout =
