@@ -1,6 +1,7 @@
 config/document.yml
 config/settings.yml
 config/globals.yml
+config/theme.yml
 layouts/page.backslash
 src/css/bootstrap.min.css
 src/css/docs.css
