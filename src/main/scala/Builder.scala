@@ -11,8 +11,6 @@ import xyz.hyperreal.{backslash, markdown, yaml}
 import xyz.hyperreal.markdown.{HeadingAST, Markdown, SeqAST, Util}
 import xyz.hyperreal.backslash.{Command, Parser, Renderer}
 
-import scala.xml.{Elem, Group, Node, Text}
-
 
 object Builder {
 
@@ -81,12 +79,12 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
         yield {
           info( s"reading config: $l" )
 
-          val yml = new String( Files readAllBytes l, StandardCharsets.UTF_8 ) trim
+          val yml = yaml.read( io.Source.fromFile(l toFile) ).head
 
-          if (yml isEmpty)
+          if (yml == null)
             Nil
           else
-            List( (withoutExtension(l.getFileName.toString), yaml.read( yml ).head) )
+            List( (withoutExtension(l.getFileName.toString), yml) )
         }
 
     cs.flatten toMap
