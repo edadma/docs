@@ -7,7 +7,7 @@ import java.nio.file.{Files, Path, Paths, StandardCopyOption}
 import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, ArrayStack, ListBuffer}
 import scala.collection.JavaConverters._
-import xyz.hyperreal.{backslash, yaml, markdown}
+import xyz.hyperreal.{backslash, markdown, yaml}
 import xyz.hyperreal.markdown.{HeadingAST, Markdown, SeqAST, Util}
 import xyz.hyperreal.backslash.{Command, Parser, Renderer}
 
@@ -142,6 +142,30 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
   def getConfigInt( front: Map[String, Any], name: String, default: Int ) =
     getIntOption( front, name ) match {
       case None => getIntDefault( settings, name, default )
+    }
+
+  def getBooleanOption( store: Any, name: String ) =
+    getValue( store, name ) match {
+      case None => None
+      case Some( v: Boolean ) => Some( v )
+      case Some( v ) => problem( s"expected boolean, got $v for $name" )
+    }
+
+  def getBoolean( store: Any, name: String ) =
+    getBooleanOption( store, name ) match {
+      case None => problem( s"required field $name not found" )
+      case Some( v ) => v
+    }
+
+  def getBooleanDefault( store: Any, name: String, default: Boolean ) =
+    getBooleanOption( store, name ) match {
+      case None => default
+      case Some( v ) => v
+    }
+
+  def getConfigBoolean( front: Map[String, Any], name: String, default: Boolean ) =
+    getBooleanOption( front, name ) match {
+      case None => getBooleanDefault( settings, name, default )
     }
 
   def readStructure( struct: Any ): Unit =
@@ -279,6 +303,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
 
   val sitebuf = Heading( "", "", "", -1, new ListBuffer[Heading] )
   val sitetrail: ArrayStack[Heading] = ArrayStack( sitebuf )
+  val firstHeading = new mutable.HashSet[String]
 
   def headings( path: String, doc: markdown.AST, front: Map[String, Any] ) = {
     val pagebuf = Heading( path, "", "", -1, new ListBuffer[Heading] )
@@ -291,8 +316,17 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
     def headings( doc: markdown.AST ): Unit =
       doc match {
         case HeadingAST( level, contents, id ) =>
-              addNodeHeading( level, Util.text(contents), id.get, pagetrail, getConfigInt(front, "pagetoc.min-level", 0), getConfigInt(front, "pagetoc.max-level", 6) )
-              addNodeHeading( level, Util.text(contents), id.get, sitetrail, getConfigInt(front, "toc.min-level", 0), getConfigInt(front, "toc.max-level", 6) )
+          val first = getConfigBoolean( front, "toc.first-heading-fragment", true )
+          val id1 =
+            if (first || firstHeading(path))
+              id.get
+            else {
+              firstHeading += path
+              ""
+            }
+
+          addNodeHeading( level, Util.text(contents), id.get, pagetrail, getConfigInt(front, "pagetoc.min-level", 0), getConfigInt(front, "pagetoc.max-level", 6) )
+          addNodeHeading( level, Util.text(contents), id1, sitetrail, getConfigInt(front, "toc.min-level", 0), getConfigInt(front, "toc.max-level", 6) )
         case SeqAST( s ) => s foreach headings
         case _ =>
       }
