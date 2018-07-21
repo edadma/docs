@@ -18,7 +18,7 @@ object Builder {
 
 }
 
-class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) {
+class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = false ) {
 
   val srcnorm = src.normalize.toAbsolutePath
 
