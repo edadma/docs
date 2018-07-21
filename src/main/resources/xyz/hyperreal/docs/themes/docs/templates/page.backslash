@@ -1,0 +1,45 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <title>\page.title</title>
+        <base href="\base">
+        <link rel="stylesheet" type="text/css" href="css/\settings.highlighter{.}css">
+        <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css">
+        <link rel="stylesheet" type="text/css" href="css/docs.css">
+    </head>
+    <body>
+        <main role="main" class="container">
+            <div class="row">
+                <div class="col-3">
+                <div class="sidenav">
+                    \def nav links {
+                        <ul class="nav flex-column">
+
+                            \for links {
+                                <li class="nav-item">
+                                    \if \isEmpty\path {
+                                        <strong>\heading</strong>
+                                    } \else {
+                                        <a class="nav-link" href="\path\if \nonEmpty\id {#\id}">\heading</a>
+                                    }
+
+                                    \if \nonEmpty\sublinks
+                                        \nav\sublinks
+                                </li>
+                            }
+
+                        </ul>
+                    }
+
+                    \nav\sitetoc
+                </div>
+                </div>
+
+                <div class="col-9">
+                    \contents
+                </div>
+            </div>
+        </main>
+    </body>
+</html>

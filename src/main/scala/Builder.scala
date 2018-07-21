@@ -14,7 +14,7 @@ import xyz.hyperreal.backslash.{Command, Parser, Renderer}
 
 object Builder {
 
-  val predefinedFrontmatterKeys = Set( "layout" )
+  val predefinedFrontmatterKeys = Set( "template" )
 
 }
 
@@ -36,11 +36,11 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
   val backslashParser = new Parser( Command.standard )
   val backslashRenderer = new Renderer( backslashParser, backslashConfig )
 
-  val layoutdir = srcnorm resolve "layouts"
+  val templatedir = srcnorm resolve "templates"
 
-  check( Files exists layoutdir, s"'layouts directory does not exist: $layoutdir" )
-  check( Files isDirectory layoutdir, s"not a directory: $layoutdir" )
-  check( Files isReadable layoutdir, s"layouts directory is unreadable: $layoutdir" )
+  check( Files exists templatedir, s"'templates directory does not exist: $templatedir" )
+  check( Files isDirectory templatedir, s"not a directory: $templatedir" )
+  check( Files isReadable templatedir, s"templates directory is unreadable: $templatedir" )
 
   val configdir = srcnorm resolve "config"
 
@@ -54,19 +54,28 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
   check( Files isDirectory sources, s"not a directory: $sources" )
   check( Files isReadable sources, s"sources directory is unreadable: $sources" )
 
-  info( s"processing layouts: $layoutdir" )
+  info( s"processing templates: $templatedir" )
 
-  val layouts = {
-    val templates = (Files list layoutdir).iterator.asScala.toList.filter (p => Files.isRegularFile(p) && Files.isReadable(p) && p.getFileName.toString.endsWith(".backslash"))
+  val templates = {
+    val templates = (Files list templatedir).iterator.asScala.toList.filter (p => Files.isRegularFile(p) && Files.isReadable(p) && p.getFileName.toString.endsWith(".backslash"))
     val ls =
       for (l <- templates)
         yield {
-          info( s"reading layout: $l" )
+          info( s"reading template: $l" )
 
           (withoutExtension(l.getFileName.toString), backslashParser.parse( io.Source.fromFile(l.toFile) ))
         }
 
     ls toMap
+  }
+
+  val normalCodeBlock = templates get "normal-code-block" match {
+    case Some( l ) => l
+    case _ => problem( s"'normal-code-block' template not found in templates" )
+  }
+  val captionedCodeBlock = templates get "captioned-code-block" match {
+    case Some( l ) => l
+    case _ => problem( s"'captioned-code-block' template not found in templates" )
   }
 
   info( s"processing configs: $configdir" )
@@ -94,7 +103,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
     case _ => problem( s"'settings' object not found in configs" )
   }
 
-  case class MdFile( dir: Path, filename: String, vars: Map[String, Any], md: String, headings: Seq[Heading], layout: backslash.AST )
+  case class MdFile( dir: Path, filename: String, vars: Map[String, Any], md: String, headings: Seq[Heading], template: backslash.AST )
 
   val mdFiles = new ArrayBuffer[MdFile]
   val resFiles = new ArrayBuffer[Path]
@@ -166,6 +175,30 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
       case None => getBooleanDefault( settings, name, default )
     }
 
+  def getStringOption( store: Any, name: String ) =
+    getValue( store, name ) match {
+      case None => None
+      case Some( v: String ) => Some( v )
+      case Some( v ) => problem( s"expected String, got $v for $name" )
+    }
+
+  def getString( store: Any, name: String ) =
+    getStringOption( store, name ) match {
+      case None => problem( s"required field $name not found" )
+      case Some( v ) => v
+    }
+
+  def getStringDefault( store: Any, name: String, default: String ) =
+    getStringOption( store, name ) match {
+      case None => default
+      case Some( v ) => v
+    }
+
+  def getConfigString( front: Map[String, Any], name: String, default: String ) =
+    getStringOption( front, name ) match {
+      case None => getStringDefault( settings, name, default )
+    }
+
   def readStructure( struct: Any ): Unit =
     struct match {
       case pgs: List[_] =>
@@ -220,11 +253,11 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
 
     create( dstnorm )
 
-    for (MdFile( dir, filename, vars, markdown, _, layout ) <- mdFiles) {
+    for (MdFile( dir, filename, vars, markdown, _, template ) <- mdFiles) {
       val dstdir = dstnorm resolve dir
       val pagetoc = pagetocMap((dir, filename))
       val base = 1 to dstdir.getNameCount - dstnorm.getNameCount map (_ => "..") mkString "/"
-      val page = backslashRenderer.capture( layout,
+      val page = backslashRenderer.capture( template,
         Map(
           "contents" -> markdown,
           "page" -> vars,
@@ -356,6 +389,11 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
     }
   }
 
+  def codeblock( c: String, highlighted: Option[String], captioned: Option[String]) =
+    backslashRenderer.capture(
+      if (captioned.isDefined) captionedCodeBlock else normalCodeBlock,
+      Map( "contents" -> c, "caption" -> captioned.orNull ) )
+
   def processMarkdownFile( f: Path ): Unit = {
     info( s"reading markdown: $f" )
 
@@ -382,36 +420,36 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
         else
           s"$dir/$filename.html"
 
-      (Util.html( doc, 2, null ), headings( path, doc, front ))
+      (Util.html( doc, 2, codeblock ), headings( path, doc, front ))
     }
 
-    val layout =
-      front get "layout" match {
+    val template =
+      front get "template" match {
         case None =>
           if (filename == "index")
-            layouts get "index" match {
+            templates get "index" match {
               case None =>
-                layouts get "page" match {
-                  case None => problem( s"neither 'index' nor 'page' layout found for laying out $f" )
+                templates get "page" match {
+                  case None => problem( s"neither 'index' nor 'page' template found for laying out $f" )
                   case Some( l ) => l
                 }
               case Some( l ) => l
             }
           else
-            layouts get "page" match {
-              case None => problem( s"'page' layout not found for laying out $f" )
+            templates get "page" match {
+              case None => problem( s"'page' template not found for laying out $f" )
               case Some( l ) => l
             }
         case Some( l ) =>
-          layouts get l.toString match {
-            case None => problem( s"layout not found: $l in file $f" )
+          templates get l.toString match {
+            case None => problem( s"template not found: $l in file $f" )
             case Some( ast ) => ast
           }
       }
 
     val vars = front -- Builder.predefinedFrontmatterKeys
 
-    mdFiles += MdFile( dir, filename, vars, md, hs, layout )
+    mdFiles += MdFile( dir, filename, vars, md, hs, template )
   }
 
   def scanDirectory( dir: Path ): Unit = {
