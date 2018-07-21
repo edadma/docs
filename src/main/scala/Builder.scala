@@ -54,30 +54,6 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
   check( Files isDirectory sources, s"not a directory: $sources" )
   check( Files isReadable sources, s"sources directory is unreadable: $sources" )
 
-  info( s"processing templates: $templatedir" )
-
-  val templates = {
-    val templates = (Files list templatedir).iterator.asScala.toList.filter (p => Files.isRegularFile(p) && Files.isReadable(p) && p.getFileName.toString.endsWith(".backslash"))
-    val ls =
-      for (l <- templates)
-        yield {
-          info( s"reading template: $l" )
-
-          (withoutExtension(l.getFileName.toString), backslashParser.parse( io.Source.fromFile(l.toFile) ))
-        }
-
-    ls toMap
-  }
-
-  val normalCodeBlock = templates get "normal-code-block" match {
-    case Some( l ) => l
-    case _ => problem( s"'normal-code-block' template not found in templates" )
-  }
-  val captionedCodeBlock = templates get "captioned-code-block" match {
-    case Some( l ) => l
-    case _ => problem( s"'captioned-code-block' template not found in templates" )
-  }
-
   info( s"processing configs: $configdir" )
 
   val configs = {
@@ -101,6 +77,30 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
   val settings = configs get "settings" match {
     case Some( s: Map[_, _] ) => s
     case _ => problem( s"'settings' object not found in configs" )
+  }
+
+  info( s"processing templates: $templatedir" )
+
+  val templates = {
+    val templates = (Files list templatedir).iterator.asScala.toList.filter (p => Files.isRegularFile(p) && Files.isReadable(p) && p.getFileName.toString.endsWith(".backslash"))
+    val ls =
+      for (l <- templates)
+        yield {
+          info( s"reading template: $l" )
+
+          (withoutExtension(l.getFileName.toString), backslashParser.parse( io.Source.fromFile(l.toFile) ))
+        }
+
+    ls toMap
+  }
+
+  val normalCodeBlock = templates get "normal-code-block" match {
+    case Some( l ) => l
+    case _ => problem( s"'normal-code-block' template not found in templates" )
+  }
+  val captionedCodeBlock = templates get "captioned-code-block" match {
+    case Some( l ) => l
+    case _ => problem( s"'captioned-code-block' template not found in templates" )
   }
 
   case class MdFile( dir: Path, filename: String, vars: Map[String, Any], md: String, headings: Seq[Heading], template: backslash.AST )
@@ -286,10 +286,18 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
 
     for (p <- resFiles) {
       val dstpath = dstnorm resolve (sources relativize p)
-      val filename = p.getFileName
+      val filename = p.getFileName.toString
       val dstdir = dstpath.getParent
 
-      if (Files.exists(dstpath) && Files.isRegularFile(dstpath) && Files.isReadable(dstpath) &&
+      if (filename endsWith ".backslash") {
+        val respath = dstdir resolve withoutExtension( filename )
+
+        info( s"transforming asset '$filename' in ${p.getParent} and writing $respath" )
+
+        val asset = backslashRenderer.capture( backslashParser.parse( io.Source.fromFile(p.toFile) ), configs )
+
+        Files.write( respath, asset.getBytes(StandardCharsets.UTF_8) )
+      } else if (Files.exists(dstpath) && Files.isRegularFile(dstpath) && Files.isReadable(dstpath) &&
         Files.getLastModifiedTime(p).compareTo( Files.getLastModifiedTime(dstpath) ) <= 0)
         info( s"asset '$filename' is up-to-date" )
       else {
@@ -462,7 +470,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
     val subdirectories = contents filter (d => Files.isDirectory(d) && Files.isReadable(d))
     val files = contents filter (f => Files.isRegularFile(f) && Files.isReadable(f))
 
-    resFiles ++= files filter (f => !f.getFileName.toString.endsWith(".md"))
+    resFiles ++= files filter (f => !(f.getFileName.toString.endsWith(".md") || f.getFileName.toString.endsWith(".html")))
     subdirectories foreach scanDirectory
   }
 

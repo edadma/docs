@@ -1,3 +1,6 @@
+\delim \ [ ]
+\set codebg eee
+
 .normal-code > pre > code {
   background-color: #eee;
   border: 1px solid rgba(0,0,0,.125);
@@ -7,7 +10,7 @@
 }
 
 .captioned-code {
-  background-color: #eee;
+  background-color: #\codebg;
 }
 
 .captioned-code > pre > code {
@@ -15,7 +18,7 @@
 }
 
 code {
-  background-color: #eee;
+  background-color: #\codebg;
   padding: 3px;
   color: unset;
 }
