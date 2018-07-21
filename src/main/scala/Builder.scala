@@ -267,7 +267,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
       val base = 1 to dstdir.getNameCount - dstnorm.getNameCount map (_ => "..") mkString "/"
       val page = backslashRenderer.capture( template,
         Map(
-          "contents" -> markdown,
+          "content" -> markdown,
           "page" -> vars,
           "toc" -> pagetoc,
           "headingtoc" -> headingtoc,
@@ -400,7 +400,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
   def codeblock( c: String, highlighted: Option[String], captioned: Option[String]) =
     backslashRenderer.capture(
       if (captioned.isDefined) captionedCodeBlock else normalCodeBlock,
-      Map( "contents" -> c, "caption" -> captioned.orNull ) )
+      Map( "content" -> c, "caption" -> captioned.orNull ) )
 
   def processMarkdownFile( f: Path ): Unit = {
     info( s"reading markdown: $f" )

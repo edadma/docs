@@ -41,7 +41,7 @@
                 </div>
 
                 <div class="col-9">
-                    <p>\pagepath</p>\contents
+                    \content
                 </div>
             </div>
         </main>
