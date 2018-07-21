@@ -5,6 +5,6 @@ templates/page.backslash
 templates/captioned-code-block.backslash
 templates/normal-code-block.backslash
 src/css/bootstrap.min.css
-src/css/docs.css
+src/css/docs.css.backslash
 src/css/manni.css
 src/js/bootstrap.bundle.min.js

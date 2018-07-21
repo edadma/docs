@@ -83,7 +83,7 @@ object Main extends App {
         }
 
     create( dir resolve "config" )
-    create( dir resolve "layouts" )
+    create( dir resolve "templates" )
     create( dir resolve "includes" )
     create( dir resolve "src" resolve "css" )
     create( dir resolve "src" resolve "js" )
