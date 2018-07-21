@@ -246,6 +246,14 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
         Map( "path" -> path, "heading" -> heading, "id" -> id, "level" -> level, "sublinks" -> toc(sublinks))
     } toList
 
+  def path( dir: Path, filename: String ) =
+    (dir.toString, filename) match {
+      case ("", "index") => "."
+      case ("", _) => s"$filename.html"
+      case (d, "index") => d
+      case _ => s"$dir/$filename.html"
+    }
+
   def writeSite: Unit = {
 
     val sitetoc = toc( sitebuf.subheadings )
@@ -265,7 +273,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
           "headingtoc" -> headingtoc,
           "sitetoc" -> sitetoc,
           "base" -> base,
-          "pagepath" -> s"$dir/$filename.html"
+          "pagepath" -> path( dir, filename )
         ) ++ configs )
 
       create( dstdir )
@@ -414,13 +422,8 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean ) 
     val dir = sources relativize f.getParent
     val (md, hs) = {
       val doc = Markdown( src )
-      val path =
-        if (dir.toString == "")
-          s"$filename.html"
-        else
-          s"$dir/$filename.html"
 
-      (Util.html( doc, 2, codeblock ), headings( path, doc, front ))
+      (Util.html( doc, 2, codeblock ), headings( path(dir, filename), doc, front ))
     }
 
     val template =
