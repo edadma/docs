@@ -204,17 +204,15 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
       case pgs: List[_] =>
         pgs foreach {
           case p: String =>
-            val folder = sources resolve Paths.get( p )
+            val src = sources resolve Paths.get( p )
 
-            if (Files.exists( folder ) && Files.isDirectory( folder ) && Files.isReadable( folder ))
-              processDirectory( folder )
+            if (Files.exists( src ) && Files.isDirectory( src ) && Files.isReadable( src ))
+              processDirectory( src )
             else {
-              val md = sources resolve Paths.get( s"$p.md" )
+              if (!(Files.exists(src) && Files.isRegularFile(src) && Files.isReadable(src)))
+                problem( s"markdown file not found or is not readable: $src" )
 
-              if (!(Files.exists(md) && Files.isRegularFile(md) && Files.isReadable(md)))
-                problem( s"markdown file not found or is not readable: $md" )
-
-              processMarkdownFile( md )
+              processFile( src )
             }
           case h: Map[_, _] => readStructure( h )
         }
@@ -463,6 +461,24 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     mdFiles += MdFile( dir, filename, vars, md, hs, template )
   }
 
+  def processHTMLFile( f: Path ): Unit = {
+
+  }
+
+  def processFile( f: Path ): Unit =
+    if (isMarkdown( f ))
+      processMarkdownFile( f )
+    else if (isHTML( f ))
+      processHTMLFile( f )
+    else
+      problem( s"don't know how to process $f" )
+
+  def isMarkdown( f: Path ) =
+    f.getFileName.toString.endsWith( ".md" ) || f.getFileName.toString.endsWith( ".markdown" )
+
+  def isHTML( f: Path ) =
+    f.getFileName.toString.endsWith( ".html" ) || f.getFileName.toString.endsWith( ".htm" )
+
   def scanDirectory( dir: Path ): Unit = {
     info( s"scanning directory for assets: $dir" )
 
@@ -470,7 +486,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     val subdirectories = contents filter (d => Files.isDirectory(d) && Files.isReadable(d))
     val files = contents filter (f => Files.isRegularFile(f) && Files.isReadable(f))
 
-    resFiles ++= files filter (f => !(f.getFileName.toString.endsWith(".md") || f.getFileName.toString.endsWith(".html")))
+    resFiles ++= files filter (f => !(isMarkdown(f) || f.getFileName.toString.endsWith(".html")))
     subdirectories foreach scanDirectory
   }
 
@@ -480,15 +496,13 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
   def processDirectory( dir: Path ): Unit = {
     info( s"scanning directory for sources: $dir" )
 
-    val contents = listDirectory( dir )
-    val subdirectories = contents filter (d => Files.isDirectory(d) && Files.isReadable(d))
-    val files = contents filter (f => Files.isRegularFile(f) && Files.isReadable(f))
-    val mds = files filter (f => f.getFileName.toString.endsWith(".md"))
-
-    if (mds nonEmpty)
-      mds foreach processMarkdownFile
-
-    subdirectories foreach processDirectory
+    for (f <- listDirectory( dir ))
+      if (Files.isDirectory( f ) && Files.isReadable( f ))
+        processDirectory( f )
+      else if (Files.isRegularFile( f ) && Files.isReadable( f ))
+        processFile( f )
+      else
+        info( s"ignoring $f" )
   }
 
 }
