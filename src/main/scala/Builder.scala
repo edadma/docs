@@ -103,9 +103,12 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     case _ => problem( s"'captioned-code-block' template not found in templates" )
   }
 
-  case class MdFile( dir: Path, filename: String, vars: Map[String, Any], md: String, headings: Seq[Heading], template: backslash.AST )
+  trait SrcFile
 
-  val mdFiles = new ArrayBuffer[MdFile]
+  case class MdFile( dir: Path, filename: String, vars: Map[String, Any], content: String, headings: Seq[Heading], template: backslash.AST ) extends SrcFile
+  case class HtmlFile( dir: Path, filename: String, vars: Map[String, Any], content: String, template: backslash.AST ) extends SrcFile
+
+  val srcFiles = new ArrayBuffer[SrcFile]
   val resFiles = new ArrayBuffer[Path]
   val pagetocMap = new mutable.HashMap[(Path, String), List[Map[String, Any]]]
   val headingtocMap = new mutable.HashMap[String, List[Map[String, Any]]]
@@ -230,7 +233,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
 
     scanDirectory( sources )
 
-    for (MdFile( dir, filename, _, _, headings, _ ) <- mdFiles) {
+    for (MdFile( dir, filename, _, _, headings, _ ) <- srcFiles) {
       pagetocMap((dir, filename)) = toc( headings )
 
       for (l <- headings)
@@ -259,7 +262,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
 
     create( dstnorm )
 
-    for (MdFile( dir, filename, vars, markdown, _, template ) <- mdFiles) {
+    for (MdFile( dir, filename, vars, markdown, _, template ) <- srcFiles) {
       val dstdir = dstnorm resolve dir
       val pagetoc = pagetocMap((dir, filename))
       val base = 1 to dstdir.getNameCount - dstnorm.getNameCount map (_ => "..") mkString "/"
@@ -458,7 +461,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
 
     val vars = front -- Builder.predefinedFrontmatterKeys
 
-    mdFiles += MdFile( dir, filename, vars, md, hs, template )
+    srcFiles += MdFile( dir, filename, vars, md, hs, template )
   }
 
   def processHTMLFile( f: Path ): Unit = {
