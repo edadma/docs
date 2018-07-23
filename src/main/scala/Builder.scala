@@ -14,7 +14,7 @@ import xyz.hyperreal.backslash.{Command, Parser, Renderer}
 
 object Builder {
 
-  val predefinedFrontmatterKeys = Set( "template" )
+  val frontmatterKeys = Set( "template", "render-toc", "toc" )
 
 }
 
@@ -152,6 +152,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
   def getConfigInt( front: Map[String, Any], name: String, default: Int ) =
     getIntOption( front, name ) match {
       case None => getIntDefault( settings, name, default )
+      case Some( v ) => v
     }
 
   def getBooleanOption( store: Any, name: String ) =
@@ -176,6 +177,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
   def getConfigBoolean( front: Map[String, Any], name: String, default: Boolean ) =
     getBooleanOption( front, name ) match {
       case None => getBooleanDefault( settings, name, default )
+      case Some( v ) => v
     }
 
   def getStringOption( store: Any, name: String ) =
@@ -200,6 +202,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
   def getConfigString( front: Map[String, Any], name: String, default: String ) =
     getStringOption( front, name ) match {
       case None => getStringDefault( settings, name, default )
+      case Some( v ) => v
     }
 
   def readStructure( struct: Any ): Unit =
@@ -272,7 +275,8 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
         val page = backslashRenderer.capture( template,
           Map(
             "content" -> markdown,
-            "page" -> vars,
+            "rendertoc" -> getConfigBoolean( vars, "rendertoc", true ),
+            "page" -> (vars -- Builder.frontmatterKeys),
             "toc" -> pagetoc,
             "headingtoc" -> headingtoc,
             "sitetoc" -> sitetoc,
@@ -292,6 +296,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
         val page = backslashRenderer.capture( template,
           Map(
             "content" -> html,
+            "rendertoc" -> getConfigBoolean( vars, "rendertoc", true ),
             "page" -> vars,
             "toc" -> Map(),
             "headingtoc" -> headingtoc,
@@ -396,19 +401,11 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
               ""
             }
           val (ptmin, ptmax) =
-            getStringOption( front, "pagetoc" ) match {
-              case Some( "disabled" ) => (Int.MaxValue, 0)
-              case _ =>
-                (getConfigInt( front, "pagetoc.min-level", 0 ),
-                  getConfigInt( front, "pagetoc.max-level", 6 ))
-            }
+            (getConfigInt( front, "pagetoc.min-level", 0 ),
+              getConfigInt( front, "pagetoc.max-level", 6 ))
           val (tmin, tmax) =
-            getStringOption( front, "toc" ) match {
-              case Some( "disabled" ) => (Int.MaxValue, 0)
-              case _ =>
-                (getConfigInt( front, "toc.min-level", 0 ),
-                  getConfigInt( front, "toc.max-level", 6 ))
-            }
+            (getConfigInt( front, "toc.min-level", 0 ),
+              getConfigInt( front, "toc.max-level", 6 ))
 
           addNodeHeading( level, Util.text(contents), id.get, pagetrail, ptmin, ptmax )
           addNodeHeading( level, Util.text(contents), id1, sitetrail, tmin, tmax )
@@ -496,9 +493,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
           }
       }
 
-    val vars = front -- Builder.predefinedFrontmatterKeys
-
-    srcFiles += MdFile( dir, filename, vars, md, hs, template )
+    srcFiles += MdFile( dir, filename, front, md, hs, template )
   }
 
   def processHTMLFile( f: Path ): Unit = {
@@ -544,9 +539,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
           }
       }
 
-    val vars = front -- Builder.predefinedFrontmatterKeys
-
-    srcFiles += HtmlFile( dir, filename, vars, src, template )
+    srcFiles += HtmlFile( dir, filename, front, src, template )
   }
 
   def processFile( f: Path ): Unit =
