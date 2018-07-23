@@ -233,11 +233,13 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
 
     scanDirectory( sources )
 
-    for (MdFile( dir, filename, _, _, headings, _ ) <- srcFiles) {
-      pagetocMap((dir, filename)) = toc( headings )
+    srcFiles foreach {
+      case MdFile( dir, filename, _, _, headings, _ ) =>
+        pagetocMap((dir, filename)) = toc( headings )
 
-      for (l <- headings)
-        headingtocMap(l.heading) = toc( Seq(l) )
+        for (l <- headings)
+          headingtocMap(l.heading) = toc( Seq(l) )
+      case _ =>
     }
   }
 
@@ -262,27 +264,48 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
 
     create( dstnorm )
 
-    for (MdFile( dir, filename, vars, markdown, _, template ) <- srcFiles) {
-      val dstdir = dstnorm resolve dir
-      val pagetoc = pagetocMap((dir, filename))
-      val base = 1 to dstdir.getNameCount - dstnorm.getNameCount map (_ => "..") mkString "/"
-      val page = backslashRenderer.capture( template,
-        Map(
-          "content" -> markdown,
-          "page" -> vars,
-          "toc" -> pagetoc,
-          "headingtoc" -> headingtoc,
-          "sitetoc" -> sitetoc,
-          "base" -> base,
-          "pagepath" -> path( dir, filename )
-        ) ++ configs )
+    srcFiles foreach {
+      case MdFile( dir, filename, vars, markdown, _, template ) =>
+        val dstdir = dstnorm resolve dir
+        val pagetoc = pagetocMap((dir, filename))
+        val base = 1 to dstdir.getNameCount - dstnorm.getNameCount map (_ => "..") mkString "/"
+        val page = backslashRenderer.capture( template,
+          Map(
+            "content" -> markdown,
+            "page" -> vars,
+            "toc" -> pagetoc,
+            "headingtoc" -> headingtoc,
+            "sitetoc" -> sitetoc,
+            "base" -> base,
+            "pagepath" -> path( dir, filename )
+          ) ++ configs )
 
-      create( dstdir )
+        create( dstdir )
 
-      val pagepath = dstdir resolve s"$filename.html"
+        val pagepath = dstdir resolve s"$filename.html"
 
-      info( s"writting page: $pagepath" )
-      Files.write( pagepath, page.getBytes(StandardCharsets.UTF_8) )
+        info( s"writting page: $pagepath" )
+        Files.write( pagepath, page.getBytes(StandardCharsets.UTF_8) )
+      case HtmlFile( dir, filename, vars, html, template ) =>
+        val dstdir = dstnorm resolve dir
+        val base = 1 to dstdir.getNameCount - dstnorm.getNameCount map (_ => "..") mkString "/"
+        val page = backslashRenderer.capture( template,
+          Map(
+            "content" -> html,
+            "page" -> vars,
+            "toc" -> Map(),
+            "headingtoc" -> headingtoc,
+            "sitetoc" -> sitetoc,
+            "base" -> base,
+            "pagepath" -> path( dir, filename )
+          ) ++ configs )
+
+        create( dstdir )
+
+        val pagepath = dstdir resolve s"$filename.html"
+
+        info( s"writting page: $pagepath" )
+        Files.write( pagepath, page.getBytes(StandardCharsets.UTF_8) )
     }
 
     for (p <- resFiles) {
@@ -465,7 +488,51 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
   }
 
   def processHTMLFile( f: Path ): Unit = {
+    info( s"reading HTML: $f" )
 
+    val filename = withoutExtension( f.getFileName.toString )
+    val s = io.Source.fromFile( f.toFile ).mkString
+    val (front, src) = {
+      val lines = s.lines
+
+      if (lines.hasNext && lines.next == "---") {
+        (yaml.read( lines takeWhile( _ != "---" ) mkString "\n" ).head match {
+          case m: Map[_, _] => m.asInstanceOf[Map[String, Any]]
+          case _ => problem( s"expected an object as front matter: $f" )
+        }, lines mkString "\n")
+      } else
+        (Map[String, Any](), s)
+    }
+
+    val dir = sources relativize f.getParent
+
+    val template =
+      front get "template" match {
+        case None =>
+          if (filename == "index")
+            templates get "index" match {
+              case None =>
+                templates get "page" match {
+                  case None => problem( s"neither 'index' nor 'page' template found for laying out $f" )
+                  case Some( l ) => l
+                }
+              case Some( l ) => l
+            }
+          else
+            templates get "page" match {
+              case None => problem( s"'page' template not found for laying out $f" )
+              case Some( l ) => l
+            }
+        case Some( l ) =>
+          templates get l.toString match {
+            case None => problem( s"template not found: $l in file $f" )
+            case Some( ast ) => ast
+          }
+      }
+
+    val vars = front -- Builder.predefinedFrontmatterKeys
+
+    srcFiles += HtmlFile( dir, filename, vars, src, template )
   }
 
   def processFile( f: Path ): Unit =
