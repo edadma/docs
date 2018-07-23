@@ -14,7 +14,7 @@ import xyz.hyperreal.backslash.{Command, Parser, Renderer}
 
 object Builder {
 
-  val frontmatterKeys = Set( "template", "render-toc", "toc" )
+  val frontmatterKeys = Set( "template", "rendertoc", "toc" )
 
 }
 
