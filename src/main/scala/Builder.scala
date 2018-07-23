@@ -395,9 +395,23 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
               firstHeading += path
               ""
             }
+          val (ptmin, ptmax) =
+            getStringOption( front, "pagetoc" ) match {
+              case Some( "disabled" ) => (Int.MaxValue, 0)
+              case _ =>
+                (getConfigInt( front, "pagetoc.min-level", 0 ),
+                  getConfigInt( front, "pagetoc.max-level", 6 ))
+            }
+          val (tmin, tmax) =
+            getStringOption( front, "toc" ) match {
+              case Some( "disabled" ) => (Int.MaxValue, 0)
+              case _ =>
+                (getConfigInt( front, "toc.min-level", 0 ),
+                  getConfigInt( front, "toc.max-level", 6 ))
+            }
 
-          addNodeHeading( level, Util.text(contents), id.get, pagetrail, getConfigInt(front, "pagetoc.min-level", 0), getConfigInt(front, "pagetoc.max-level", 6) )
-          addNodeHeading( level, Util.text(contents), id1, sitetrail, getConfigInt(front, "toc.min-level", 0), getConfigInt(front, "toc.max-level", 6) )
+          addNodeHeading( level, Util.text(contents), id.get, pagetrail, ptmin, ptmax )
+          addNodeHeading( level, Util.text(contents), id1, sitetrail, tmin, tmax )
         case SeqAST( s ) => s foreach headings
         case _ =>
       }
@@ -543,11 +557,11 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     else
       problem( s"don't know how to process $f" )
 
-  def isMarkdown( f: Path ) =
-    f.getFileName.toString.endsWith( ".md" ) || f.getFileName.toString.endsWith( ".markdown" )
+  def hasExtension( f: Path, ext: String* ) = ext exists (f.getFileName.toString.endsWith( _ ))
 
-  def isHTML( f: Path ) =
-    f.getFileName.toString.endsWith( ".html" ) || f.getFileName.toString.endsWith( ".htm" )
+  def isMarkdown( f: Path ) = hasExtension( f, ".md", ".markdown" )
+
+  def isHTML( f: Path ) = hasExtension( f, ".html", ".htm" )
 
   def scanDirectory( dir: Path ): Unit = {
     info( s"scanning directory for assets: $dir" )
