@@ -235,6 +235,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
       case Some( s ) => readStructure( s )
     }
 
+    processSpecials( sources )
     scanDirectory( sources )
 
     srcFiles foreach {
@@ -572,6 +573,16 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
 
   def listDirectory( dir: Path ) =
     (Files list dir).iterator.asScala.toList sorted
+
+  val specialSources = List( "404" )
+
+  def processSpecials( dir: Path ): Unit = {
+    info( s"scanning directory for special sources: $dir" )
+
+    for (f <- listDirectory( dir ))
+      if (specialSources.contains( withoutExtension(f.getFileName) ) && Files.isRegularFile( f ) && Files.isReadable( f ))
+        processFile( f )
+  }
 
   def processDirectory( dir: Path ): Unit = {
     info( s"scanning directory for sources: $dir" )
