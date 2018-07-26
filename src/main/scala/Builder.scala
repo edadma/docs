@@ -15,7 +15,7 @@ import xyz.hyperreal.backslash.{Command, Parser, Renderer}
 object Builder {
 
   val frontmatterKeys = Set( "template", "rendertoc", "toc" )
-  val defaultPermalink = """\directory/\filename"""
+  val defaultPermalink = ":directory:fs:filename"
 
 }
 
