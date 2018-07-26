@@ -70,7 +70,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
           if (yml == null)
             Nil
           else
-            List( (withoutExtension(l.getFileName.toString), yml) )
+            List( (withoutExtension(l.getFileName), yml) )
         }
 
     cs.flatten toMap
@@ -89,7 +89,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
         yield {
           info( s"reading template: $l" )
 
-          (withoutExtension(l.getFileName.toString), backslashParser.parse( io.Source.fromFile(l.toFile) ))
+          (withoutExtension(l.getFileName), backslashParser.parse( io.Source.fromFile(l.toFile) ))
         }
 
     ls toMap
@@ -106,12 +106,12 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
 
   trait SrcFile
 
-  case class MdFile( dir: Path, filename: String, vars: Map[String, Any], content: String, headings: Seq[Heading], template: backslash.AST ) extends SrcFile
-  case class HtmlFile( dir: Path, filename: String, vars: Map[String, Any], content: String, template: backslash.AST ) extends SrcFile
+  case class MdFile( dir: Path, filename: String, pagepath: String, vars: Map[String, Any], content: String, headings: Seq[Heading], template: backslash.AST ) extends SrcFile
+  case class HtmlFile( dir: Path, filename: String, pagepath: String, vars: Map[String, Any], content: String, template: backslash.AST ) extends SrcFile
 
   val srcFiles = new ArrayBuffer[SrcFile]
   val resFiles = new ArrayBuffer[Path]
-  val pagetocMap = new mutable.HashMap[(Path, String), List[Map[String, Any]]]
+  val pagetocMap = new mutable.HashMap[String, List[Map[String, Any]]]
   val headingtocMap = new mutable.HashMap[String, List[Map[String, Any]]]
 
   def getValue( store: Any, name: String ) = {
@@ -238,8 +238,8 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     scanDirectory( sources )
 
     srcFiles foreach {
-      case MdFile( dir, filename, _, _, headings, _ ) =>
-        pagetocMap((dir, filename)) = toc( headings )
+      case MdFile( dir, filename, pagepath, _, _, headings, _ ) =>
+        pagetocMap(pagepath) = toc( headings )
 
         for (l <- headings)
           headingtocMap(l.heading) = toc( Seq(l) )
@@ -262,16 +262,15 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     }
 
   def writeSite: Unit = {
-
     val sitetoc = toc( sitebuf.subheadings )
     val headingtoc = headingtocMap toMap
 
     create( dstnorm )
 
     srcFiles foreach {
-      case MdFile( dir, filename, vars, markdown, _, template ) =>
+      case MdFile( dir, filename, pagepath, vars, markdown, _, template ) =>
         val dstdir = dstnorm resolve dir
-        val pagetoc = pagetocMap((dir, filename))
+        val pagetoc = pagetocMap(pagepath)
         val base = 1 to dstdir.getNameCount - dstnorm.getNameCount map (_ => "..") mkString "/"
         val page = backslashRenderer.capture( template,
           Map(
@@ -282,16 +281,16 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
             "headingtoc" -> headingtoc,
             "sitetoc" -> sitetoc,
             "base" -> base,
-            "pagepath" -> path( dir, filename )
+            "pagepath" -> pagepath//path( dir, filename )
           ) ++ configs )
 
         create( dstdir )
 
-        val pagepath = dstdir resolve s"$filename.html"
+        val pagedstpath = dstdir resolve s"$filename.html"
 
-        info( s"writting page: $pagepath" )
-        Files.write( pagepath, page.getBytes(StandardCharsets.UTF_8) )
-      case HtmlFile( dir, filename, vars, html, template ) =>
+        info( s"writting page: $pagedstpath" )
+        Files.write( pagedstpath, page.getBytes(StandardCharsets.UTF_8) )
+      case HtmlFile( dir, filename, pagepath, vars, html, template ) =>
         val dstdir = dstnorm resolve dir
         val base = 1 to dstdir.getNameCount - dstnorm.getNameCount map (_ => "..") mkString "/"
         val page = backslashRenderer.capture( template,
@@ -303,23 +302,23 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
             "headingtoc" -> headingtoc,
             "sitetoc" -> sitetoc,
             "base" -> base,
-            "pagepath" -> path( dir, filename )
+            "pagepath" -> pagepath
           ) ++ configs )
 
         create( dstdir )
 
-        val pagepath = dstdir resolve s"$filename.html"
+        val pagedstpath = dstdir resolve s"$filename.html"
 
-        info( s"writting page: $pagepath" )
-        Files.write( pagepath, page.getBytes(StandardCharsets.UTF_8) )
+        info( s"writting page: $pagedstpath" )
+        Files.write( pagedstpath, page.getBytes(StandardCharsets.UTF_8) )
     }
 
     for (p <- resFiles) {
       val dstpath = dstnorm resolve (sources relativize p)
-      val filename = p.getFileName.toString
+      val filename = p.getFileName
       val dstdir = dstpath.getParent
 
-      if (filename endsWith ".backslash") {
+      if (filename.toString endsWith ".backslash") {
         val respath = dstdir resolve withoutExtension( filename )
 
         info( s"transforming asset '$filename' in ${p.getParent} and writing $respath" )
@@ -336,7 +335,6 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
         Files.copy( p, dstpath, StandardCopyOption.REPLACE_EXISTING )
       }
     }
-
   }
 
   def build: Unit = {
@@ -366,11 +364,14 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     }
   }
 
-  def withoutExtension( s: String ) =
+  def withoutExtension( f: Path ) = {
+    val s = f.toString
+
     s lastIndexOf '.' match {
       case -1 => s
       case dot => s.substring( 0, dot )
     }
+  }
 
   def info( msg: String ): Unit =
     if (verbose)
@@ -449,7 +450,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
   def processMarkdownFile( f: Path ): Unit = {
     info( s"reading markdown: $f" )
 
-    val filename = withoutExtension( f.getFileName.toString )
+    val filename = withoutExtension( f.getFileName )
     val s = io.Source.fromFile( f.toFile ).mkString
     val (front, src) = {
       val lines = s.lines
@@ -464,10 +465,11 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     }
 
     val dir = sources relativize f.getParent
+    val pagepath = path( dir, filename )
     val (md, hs) = {
       val doc = Markdown( src )
 
-      (Util.html( doc, 2, codeblock ), headings( path(dir, filename), doc, front ))
+      (Util.html( doc, 2, codeblock ), headings( pagepath, doc, front ))
     }
 
     val template =
@@ -494,13 +496,13 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
           }
       }
 
-    srcFiles += MdFile( dir, filename, front, md, hs, template )
+    srcFiles += MdFile( dir, filename, pagepath, front, md, hs, template )
   }
 
   def processHTMLFile( f: Path ): Unit = {
     info( s"reading HTML: $f" )
 
-    val filename = withoutExtension( f.getFileName.toString )
+    val filename = withoutExtension( f.getFileName )
     val s = io.Source.fromFile( f.toFile ).mkString
     val (front, src) = {
       val lines = s.lines
@@ -515,7 +517,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     }
 
     val dir = sources relativize f.getParent
-
+    val pagepath = path( dir, filename )
     val template =
       front get "template" match {
         case None =>
@@ -540,7 +542,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
           }
       }
 
-    srcFiles += HtmlFile( dir, filename, front, src, template )
+    srcFiles += HtmlFile( dir, filename, pagepath, front, src, template )
   }
 
   def processFile( f: Path ): Unit =
