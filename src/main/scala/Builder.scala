@@ -1,6 +1,7 @@
 //@
 package xyz.hyperreal.docs
 
+import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths, StandardCopyOption}
 
@@ -12,15 +13,10 @@ import xyz.hyperreal.markdown.{HeadingAST, Markdown, SeqAST, Util}
 import xyz.hyperreal.backslash.{Command, Parser, Renderer}
 
 
-object Builder {
+class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = false ) {
 
   val frontmatterKeys = Set( "template", "rendertoc", "toc" )
   val defaultPermalink = ":directory:fs:filename"
-
-}
-
-class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = false ) {
-
   val srcnorm = src.normalize.toAbsolutePath
 
   check( Files exists srcnorm, s"source does not exist: $srcnorm" )
@@ -35,6 +31,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
       "rounding" -> "HALF_EVEN"
     )
   val backslashParser = new Parser( Command.standard )
+  val permalinkParser = new Parser( Command.standard, csDelim = ":" )
   val backslashRenderer = new Renderer( backslashParser, backslashConfig )
 
   val templatedir = srcnorm resolve "templates"
@@ -277,7 +274,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
           Map(
             "content" -> markdown,
             "rendertoc" -> getConfigBoolean( vars, "rendertoc", true ),
-            "page" -> (vars -- Builder.frontmatterKeys),
+            "page" -> (vars -- frontmatterKeys),
             "toc" -> pagetoc,
             "headingtoc" -> headingtoc,
             "sitetoc" -> sitetoc,
@@ -466,7 +463,16 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     }
 
     val dir = sources relativize f.getParent
-    val pagepath = path( dir, filename )
+    val permalink =
+      Paths.get(
+        backslashRenderer.capture(
+          permalinkParser.parse(io.Source.fromString(getConfigString(front, "permalink", defaultPermalink))),
+          Map("fs" -> File.separator, "directory" -> dir.toString, "filename" -> filename) ) + ".html"
+      )
+    println( permalink)
+    val permalinkdir = permalink.getParent
+    val permalinkfilename = permalink.getFileName.toString
+    val pagepath = path( permalinkdir, permalinkfilename )
     val (md, hs) = {
       val doc = Markdown( src )
 
@@ -497,7 +503,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
           }
       }
 
-    srcFiles += MdFile( dir, filename, pagepath, front, md, hs, template )
+    srcFiles += MdFile( permalinkdir, permalinkfilename, pagepath, front, md, hs, template )
   }
 
   def processHTMLFile( f: Path ): Unit = {
