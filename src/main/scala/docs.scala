@@ -16,7 +16,7 @@ package object docs {
     if (!cond)
       problem( msg )
 
-  def problem( msg: String ) = throw new DocsException( msg )
+  def problem( msg: String ) = sys.error(msg)//throw new DocsException( msg )
 
   def create( dir: Path ) = {
     Files createDirectories dir

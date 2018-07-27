@@ -15,8 +15,9 @@ import xyz.hyperreal.backslash.{Command, Parser, Renderer}
 
 class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = false ) {
 
+  val separator = File.separator
   val frontmatterKeys = Set( "template", "rendertoc", "toc" )
-  val defaultPermalink = ":directory:fs:filename"
+  val defaultPermalink = s":directory$separator:filename"
   val srcnorm = src.normalize.toAbsolutePath
 
   check( Files exists srcnorm, s"source does not exist: $srcnorm" )
@@ -236,7 +237,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     scanDirectory( sources )
 
     srcFiles foreach {
-      case MdFile( dir, filename, pagepath, _, _, headings, _ ) =>
+      case MdFile( _, _, pagepath, _, _, headings, _ ) =>
         pagetocMap(pagepath) = toc( headings )
 
         for (l <- headings)
@@ -254,9 +255,9 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
   def path( dir: Path, filename: String ) =
     (dir.toString, filename) match {
       case ("", "index") => "."
-      case ("", _) => s"$filename.html"
+      case ("", _) => filename
       case (d, "index") => d
-      case _ => s"$dir/$filename.html"
+      case _ => s"$dir$separator$filename"
     }
 
   def writeSite: Unit = {
@@ -284,9 +285,9 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
 
         create( dstdir )
 
-        val pagedstpath = dstdir resolve s"$filename.html"
+        val pagedstpath = dstdir resolve filename
 
-        info( s"writting page: $pagedstpath" )
+        info( s"writing page: $pagedstpath" )
         Files.write( pagedstpath, page.getBytes(StandardCharsets.UTF_8) )
       case HtmlFile( dir, filename, pagepath, vars, html, template ) =>
         val dstdir = dstnorm resolve dir
@@ -307,7 +308,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
 
         val pagedstpath = dstdir resolve s"$filename.html"
 
-        info( s"writting page: $pagedstpath" )
+        info( s"writing page: $pagedstpath" )
         Files.write( pagedstpath, page.getBytes(StandardCharsets.UTF_8) )
     }
 
@@ -467,10 +468,13 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
       Paths.get(
         backslashRenderer.capture(
           permalinkParser.parse(io.Source.fromString(getConfigString(front, "permalink", defaultPermalink))),
-          Map("fs" -> File.separator, "directory" -> dir.toString, "filename" -> filename) ) + ".html"
+          Map("fs" -> separator, "directory" -> dir.toString, "filename" -> filename) ) + ".html"
       )
-    println( permalink)
-    val permalinkdir = permalink.getParent
+    val permalinkdir =
+      if (permalink.isAbsolute)
+        Paths get ""
+      else
+        permalink.getParent
     val permalinkfilename = permalink.getFileName.toString
     val pagepath = path( permalinkdir, permalinkfilename )
     val (md, hs) = {
