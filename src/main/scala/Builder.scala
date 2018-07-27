@@ -102,10 +102,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     case _ => problem( s"'captioned-code-block' template not found in templates" )
   }
 
-  trait SrcFile
-
-  case class MdFile( dir: Path, filename: String, pagepath: String, vars: Map[String, Any], content: String, headings: Seq[Heading], template: backslash.AST ) extends SrcFile
-  case class HtmlFile( dir: Path, filename: String, pagepath: String, vars: Map[String, Any], content: String, template: backslash.AST ) extends SrcFile
+  case class SrcFile( dir: Path, filename: String, pagepath: String, vars: Map[String, Any], content: String, headings: Option[Seq[Heading]], template: backslash.AST )
 
   val srcFiles = new ArrayBuffer[SrcFile]
   val resFiles = new ArrayBuffer[Path]
@@ -237,7 +234,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     scanDirectory( sources )
 
     srcFiles foreach {
-      case MdFile( _, _, pagepath, _, _, headings, _ ) =>
+      case SrcFile( _, _, pagepath, _, _, Some(headings), _ ) =>
         pagetocMap(pagepath) = toc( headings )
 
         for (l <- headings)
@@ -267,9 +264,13 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     create( dstnorm )
 
     srcFiles foreach {
-      case MdFile( dir, filename, pagepath, vars, markdown, _, template ) =>
+      case SrcFile( dir, filename, pagepath, vars, markdown, headings, template ) =>
         val dstdir = dstnorm resolve dir
-        val pagetoc = pagetocMap(pagepath)
+        val pagetoc =
+          if (headings isDefined)
+            pagetocMap(pagepath)
+          else
+            Map()
         val base = 1 to dstdir.getNameCount - dstnorm.getNameCount map (_ => "..") mkString "/"
         val page = backslashRenderer.capture( template,
           Map(
@@ -286,27 +287,6 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
         create( dstdir )
 
         val pagedstpath = dstdir resolve filename
-
-        info( s"writing page: $pagedstpath" )
-        Files.write( pagedstpath, page.getBytes(StandardCharsets.UTF_8) )
-      case HtmlFile( dir, filename, pagepath, vars, html, template ) =>
-        val dstdir = dstnorm resolve dir
-        val base = 1 to dstdir.getNameCount - dstnorm.getNameCount map (_ => "..") mkString "/"
-        val page = backslashRenderer.capture( template,
-          Map(
-            "content" -> html,
-            "rendertoc" -> getConfigBoolean( vars, "rendertoc", true ),
-            "page" -> vars,
-            "toc" -> Map(),
-            "headingtoc" -> headingtoc,
-            "sitetoc" -> sitetoc,
-            "base" -> base,
-            "pagepath" -> pagepath
-          ) ++ configs )
-
-        create( dstdir )
-
-        val pagedstpath = dstdir resolve s"$filename.html"
 
         info( s"writing page: $pagedstpath" )
         Files.write( pagedstpath, page.getBytes(StandardCharsets.UTF_8) )
@@ -446,8 +426,16 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
       if (captioned.isDefined) captionedCodeBlock else normalCodeBlock,
       Map( "content" -> c, "caption" -> captioned.orNull ) )
 
-  def processMarkdownFile( f: Path ): Unit = {
-    info( s"reading markdown: $f" )
+  def transformMarkdown( src: String, pagepath: String, front: Map[String, Any] ) = {
+    val doc = Markdown( src )
+
+    (Util.html( doc, 2, codeblock ), Some( headings(pagepath, doc, front) ))
+  }
+
+  def transformHTML( src: String, pagepath: String, front: Map[String, Any] ) = (src, None)
+
+  def processSourceFile( f: Path, transform: (String, String, Map[String, Any]) => (String, Option[Seq[Heading]]) ): Unit = {
+    info( s"reading source: $f" )
 
     val filename = withoutExtension( f.getFileName )
     val s = io.Source.fromFile( f.toFile ).mkString
@@ -477,12 +465,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
         permalink.getParent
     val permalinkfilename = permalink.getFileName.toString
     val pagepath = path( permalinkdir, permalinkfilename )
-    val (md, hs) = {
-      val doc = Markdown( src )
-
-      (Util.html( doc, 2, codeblock ), headings( pagepath, doc, front ))
-    }
-
+    val (res, hs) = transform( src, pagepath, front )
     val template =
       front get "template" match {
         case None =>
@@ -507,60 +490,14 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
           }
       }
 
-    srcFiles += MdFile( permalinkdir, permalinkfilename, pagepath, front, md, hs, template )
-  }
-
-  def processHTMLFile( f: Path ): Unit = {
-    info( s"reading HTML: $f" )
-
-    val filename = withoutExtension( f.getFileName )
-    val s = io.Source.fromFile( f.toFile ).mkString
-    val (front, src) = {
-      val lines = s.lines
-
-      if (lines.hasNext && lines.next == "---") {
-        (yaml.read( lines takeWhile( _ != "---" ) mkString "\n" ).head match {
-          case m: Map[_, _] => m.asInstanceOf[Map[String, Any]]
-          case _ => problem( s"expected an object as front matter: $f" )
-        }, lines mkString "\n")
-      } else
-        (Map[String, Any](), s)
-    }
-
-    val dir = sources relativize f.getParent
-    val pagepath = path( dir, filename )
-    val template =
-      front get "template" match {
-        case None =>
-          if (filename == "index")
-            templates get "index" match {
-              case None =>
-                templates get "page" match {
-                  case None => problem( s"neither 'index' nor 'page' template found for laying out $f" )
-                  case Some( l ) => l
-                }
-              case Some( l ) => l
-            }
-          else
-            templates get "page" match {
-              case None => problem( s"'page' template not found for laying out $f" )
-              case Some( l ) => l
-            }
-        case Some( l ) =>
-          templates get l.toString match {
-            case None => problem( s"template not found: $l in file $f" )
-            case Some( ast ) => ast
-          }
-      }
-
-    srcFiles += HtmlFile( dir, filename, pagepath, front, src, template )
+    srcFiles += SrcFile( permalinkdir, permalinkfilename, pagepath, front, res, hs, template )
   }
 
   def processFile( f: Path ): Unit =
     if (isMarkdown( f ))
-      processMarkdownFile( f )
+      processSourceFile( f, transformMarkdown )
     else if (isHTML( f ))
-      processHTMLFile( f )
+      processSourceFile( f, transformHTML )
     else
       problem( s"don't know how to process $f" )
 
