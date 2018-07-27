@@ -15,9 +15,8 @@ import xyz.hyperreal.backslash.{Command, Parser, Renderer}
 
 class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = false ) {
 
-  val separator = File.separator
   val frontmatterKeys = Set( "template", "rendertoc", "toc" )
-  val defaultPermalink = s":directory$separator:filename"
+  val defaultPermalink = s":directory/:filename"
   val srcnorm = src.normalize.toAbsolutePath
 
   check( Files exists srcnorm, s"source does not exist: $srcnorm" )
@@ -212,7 +211,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
               processDirectory( src )
             else {
               if (!(Files.exists(src) && Files.isRegularFile(src) && Files.isReadable(src)))
-                problem( s"markdown file not found or is not readable: $src" )
+                problem( s"source file not found or is unreadable: $src" )
 
               processFile( src )
             }
@@ -254,7 +253,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
       case ("", "index") => "."
       case ("", _) => filename
       case (d, "index") => d
-      case _ => s"$dir$separator$filename"
+      case _ => s"$dir/$filename"
     }
 
   def writeSite: Unit = {
@@ -281,7 +280,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
             "headingtoc" -> headingtoc,
             "sitetoc" -> sitetoc,
             "base" -> base,
-            "pagepath" -> pagepath//path( dir, filename )
+            "pagepath" -> pagepath
           ) ++ configs )
 
         create( dstdir )
@@ -452,12 +451,15 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     }
 
     val dir = sources relativize f.getParent
-    val permalink =
-      Paths.get(
-        backslashRenderer.capture(
-          permalinkParser.parse(io.Source.fromString(getConfigString(front, "permalink", defaultPermalink))),
-          Map("fs" -> separator, "directory" -> dir.toString, "filename" -> filename) ) + ".html"
-      )
+    val permalink = {
+      val s1 = backslashRenderer.capture(
+        permalinkParser.parse(io.Source.fromString(getConfigString(front, "permalink", defaultPermalink))),
+        Map("directory" -> dir.toString, "filename" -> filename) ).trim
+      val s2 = if (s1 startsWith "/") s1 drop 1 else s1
+      val s3 = if (s2 endsWith "/") s2 + "index" else s2
+
+      Paths.get( s3.replace('/', File.separatorChar) + ".html" )
+    }
     val permalinkdir =
       if (permalink.isAbsolute)
         Paths get ""
@@ -537,7 +539,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     for (f <- listDirectory( dir ))
       if (Files.isDirectory( f ) && Files.isReadable( f ))
         processDirectory( f )
-      else if (Files.isRegularFile( f ) && Files.isReadable( f ))
+      else if (Files.isRegularFile( f ) && Files.isReadable( f ) && (isMarkdown( f ) || isHTML( f )))
         processFile( f )
       else
         info( s"ignoring $f" )
