@@ -461,7 +461,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
       Paths.get( s3.replace('/', File.separatorChar) + ".html" )
     }
     val permalinkdir =
-      if (permalink.isAbsolute)
+      if (permalink.getNameCount == 1)
         Paths get ""
       else
         permalink.getParent
