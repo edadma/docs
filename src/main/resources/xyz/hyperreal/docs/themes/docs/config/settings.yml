@@ -1,3 +1,5 @@
 highlighter: manni
 toc:
   max-level: 2
+  first-heading-fragment: false
+permalink: :directory/:filename:if:/=:filename"index"/
