@@ -248,14 +248,6 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
         Map( "path" -> path, "heading" -> heading, "id" -> id, "level" -> level, "sublinks" -> toc(sublinks))
     } toList
 
-  def path( dir: Path, filename: String ) =
-    (dir.toString, filename) match {
-      case ("", "index") => "."
-      case ("", _) => filename
-      case (d, "index") => d
-      case _ => s"$dir/$filename"
-    }
-
   def writeSite: Unit = {
     val sitetoc = toc( sitebuf.subheadings )
     val headingtoc = headingtocMap toMap
@@ -433,6 +425,14 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
 
   def transformHTML( src: String, pagepath: String, front: Map[String, Any] ) = (src, None)
 
+//  def path( dir: Path, filename: String ) =
+//    (dir.toString, filename) match {
+//      case ("", "index") => "."
+//      case ("", _) => filename
+//      case (d, "index") => d
+//      case _ => s"$dir/$filename"
+//    }
+
   def processSourceFile( f: Path, transform: (String, String, Map[String, Any]) => (String, Option[Seq[Heading]]) ): Unit = {
     info( s"reading source: $f" )
 
@@ -451,14 +451,18 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     }
 
     val dir = sources relativize f.getParent
-    val permalink = {
-      val s1 = backslashRenderer.capture(
+    val pagepath = {
+      val s = backslashRenderer.capture(
         permalinkParser.parse(io.Source.fromString(getConfigString(front, "permalink", defaultPermalink))),
         Map("directory" -> dir.toString, "filename" -> filename) ).trim
-      val s2 = if (s1 startsWith "/") s1 drop 1 else s1
-      val s3 = if (s2 endsWith "/") s2 + "index" else s2
+      val s1 = if (s startsWith "/") s drop 1 else s
 
-      Paths.get( s3.replace('/', File.separatorChar) + ".html" )
+      if (s1 endsWith "index") s1.substring( 0, s1.length - "index".length ) else s1
+    }
+    val permalink = {
+      val s = if (pagepath.isEmpty || (pagepath endsWith "/")) pagepath + "index" else pagepath
+
+      Paths.get( s.replace('/', File.separatorChar) + ".html" )
     }
     val permalinkdir =
       if (permalink.getNameCount == 1)
@@ -466,7 +470,6 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
       else
         permalink.getParent
     val permalinkfilename = permalink.getFileName.toString
-    val pagepath = path( permalinkdir, permalinkfilename )
     val (res, hs) = transform( src, pagepath, front )
     val template =
       front get "template" match {
@@ -546,3 +549,13 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
   }
 
 }
+
+//                                    \if \isEmpty\path {
+//                                        <strong>\heading</strong>
+//                                    } \else {
+//                                        \if \and\isEmpty\id\=\pagepath\path {
+//                                            <a class="nav-link active" href="\path\if \nonEmpty\id {#\id}">\heading</a>
+//                                        } \else {
+//                                            <a class="nav-link" href="\path\if \nonEmpty\id {#\id}">\heading</a>
+//                                        }
+//                                    }
