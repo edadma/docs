@@ -554,13 +554,3 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
   }
 
 }
-
-//                                    \if \isEmpty\path {
-//                                        <strong>\heading</strong>
-//                                    } \else {
-//                                        \if \and\isEmpty\id\=\pagepath\path {
-//                                            <a class="nav-link active" href="\path\if \nonEmpty\id {#\id}">\heading</a>
-//                                        } \else {
-//                                            <a class="nav-link" href="\path\if \nonEmpty\id {#\id}">\heading</a>
-//                                        }
-//                                    }
