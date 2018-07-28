@@ -219,7 +219,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
         }
       case hds: Map[_, _] =>
         hds foreach {
-          case (k: String, v) => addHeading( 0, "", k, "", sitetrail )
+          case (k: String, v) => addHeading( 0, None, k, "", sitetrail )
         }
     }
 
@@ -244,8 +244,10 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
 
   def toc( headings: Seq[Heading] ): List[Map[String, Any]] =
     headings map {
-      case Heading( path, heading, id, level, sublinks ) =>
-        Map( "path" -> path, "heading" -> heading, "id" -> id, "level" -> level, "sublinks" -> toc(sublinks))
+      case Heading( Some(path), heading, id, level, sublinks ) =>
+        Map( "path" -> path, "heading" -> heading, "id" -> id, "level" -> level, "sublinks" -> toc(sublinks) )
+      case Heading( None, heading, id, level, sublinks ) =>
+        Map( "heading" -> heading, "id" -> id, "level" -> level, "sublinks" -> toc(sublinks) )
     } toList
 
   def writeSite: Unit = {
@@ -347,13 +349,13 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     if (verbose)
       println( msg )
 
-  case class Heading( path: String, heading: String, id: String, level: Int, subheadings: ListBuffer[Heading] )
+  case class Heading( path: Option[String], heading: String, id: String, level: Int, subheadings: ListBuffer[Heading] )
 
-  val sitebuf = Heading( "", "", "", -1, new ListBuffer[Heading] )
+  val sitebuf = Heading( None, "", "", -1, new ListBuffer[Heading] )
   val sitetrail: ArrayStack[Heading] = ArrayStack( sitebuf )
   val firstHeading = new mutable.HashSet[String]
 
-  def headings( path: String, doc: markdown.AST, front: Map[String, Any] ) = {
+  def headings( path: Option[String], doc: markdown.AST, front: Map[String, Any] ) = {
     val pagebuf = Heading( path, "", "", -1, new ListBuffer[Heading] )
     val pagetrail: ArrayStack[Heading] = ArrayStack( pagebuf )
 
@@ -366,12 +368,15 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
         case HeadingAST( level, contents, id ) =>
           val first = getConfigBoolean( front, "toc.first-heading-fragment", true )
           val id1 =
-            if (first || firstHeading(path))
-              id.get
-            else {
-              firstHeading += path
+            if (path isDefined)
+              if (first || firstHeading(path.get))
+                id.get
+              else {
+                firstHeading += path.get
+                ""
+              }
+            else
               ""
-            }
           val (ptmin, ptmax) =
             (getConfigInt( front, "pagetoc.min-level", 0 ),
               getConfigInt( front, "pagetoc.max-level", 6 ))
@@ -389,7 +394,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     pagebuf.subheadings
   }
 
-  def addHeading( level: Int, path: String, text: String, id: String, trail: ArrayStack[Heading] ): Unit = {
+  def addHeading( level: Int, path: Option[String], text: String, id: String, trail: ArrayStack[Heading] ): Unit = {
     if (level > trail.head.level) {
       val sub = Heading( path, text, id, level, new ListBuffer[Heading] )
 
@@ -420,7 +425,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
   def transformMarkdown( src: String, pagepath: String, front: Map[String, Any] ) = {
     val doc = Markdown( src )
 
-    (Util.html( doc, 2, codeblock ), Some( headings(pagepath, doc, front) ))
+    (Util.html( doc, 2, codeblock ), Some( headings(Some(pagepath), doc, front) ))
   }
 
   def transformHTML( src: String, pagepath: String, front: Map[String, Any] ) = (src, None)
