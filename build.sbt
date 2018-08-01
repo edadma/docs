@@ -57,7 +57,7 @@ libraryDependencies ++= {
 //}
 
 libraryDependencies ++= Seq(
-  "xyz.hyperreal" %% "markdown" % "0.5.2",
+  "xyz.hyperreal" %% "markdown" % "0.5.3",
   "xyz.hyperreal" %% "backslash" % "0.4.22",
   "xyz.hyperreal" %% "yaml" % "0.1.5",
   "xyz.hyperreal" %% "args" % "0.1",
