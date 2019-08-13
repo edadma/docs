@@ -2,7 +2,7 @@ name := "docs"
 
 version := "0.1"
 
-scalaVersion := "2.12.6"
+scalaVersion := "2.13.0"
 
 //crossScalaVersions := Seq( "2.11.11" )
 
@@ -17,13 +17,13 @@ resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/release
 resolvers += "Hyperreal Repository" at "https://dl.bintray.com/edadma/maven"
 
 libraryDependencies ++= Seq(
-	"org.scalatest" %% "scalatest" % "3.0.5" % "test",
+	"org.scalatest" %% "scalatest" % "3.0.8" % "test",
 	"org.scalacheck" %% "scalacheck" % "1.14.0" % "test"
 )
 
 libraryDependencies ++= Seq(
 //	"org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.0",
-	"org.scala-lang.modules" %% "scala-xml" % "1.1.0"
+	"org.scala-lang.modules" %% "scala-xml" % "1.2.0"
 //	"org.scala-lang.modules" %% "scala-swing" % "2.0.3"
 )
 
@@ -35,33 +35,12 @@ libraryDependencies ++= Seq(
 //  "jline" % "jline" % "2.14.6"
 //)
 
-libraryDependencies ++= {
-	val akkaV = "2.5.12"
-	Seq(
-//		"com.typesafe.akka" %% "akka-actor"    % akkaV
-//		"com.typesafe.akka" %% "akka-remote"   % akkaV,
-//		"com.typesafe.akka" %% "akka-testkit"  % akkaV    % "test",
-//		"org.specs2"        %% "specs2-core"   % "2.3.11" % "test"
-	)
-}
-
-//libraryDependencies ++= {
-//	val akka_http = "10.1.1"
-//	Seq(
-//		"com.typesafe.akka" %% "akka-http-core"       % akka_http,
-//		"com.typesafe.akka" %% "akka-http"            % akka_http,
-//		"com.typesafe.akka" %% "akka-http-testkit"    % akka_http,
-//		"com.typesafe.akka" %% "akka-http-spray-json" % akka_http,
-//		"com.typesafe.akka" %% "akka-http-jackson"    % akka_http
-//	)
-//}
-
 libraryDependencies ++= Seq(
-  "xyz.hyperreal" %% "markdown" % "0.5.3",
-  "xyz.hyperreal" %% "backslash" % "0.4.22",
-  "xyz.hyperreal" %% "yaml" % "0.1.5",
-  "xyz.hyperreal" %% "args" % "0.1",
-  "xyz.hyperreal" %% "spritz" % "0.1"
+  "xyz.hyperreal" %% "markdown" % "0.6",
+  "xyz.hyperreal" %% "backslash" % "0.5.0",
+  "xyz.hyperreal" %% "yaml" % "0.2",
+  "xyz.hyperreal" %% "args" % "0.2",
+  "xyz.hyperreal" %% "spritz" % "0.2"
 )
 
 coverageExcludedPackages := ".*Main"

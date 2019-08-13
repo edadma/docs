@@ -6,8 +6,8 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths, StandardCopyOption}
 
 import scala.collection.mutable
-import scala.collection.mutable.{ArrayBuffer, ArrayStack, ListBuffer}
-import scala.collection.JavaConverters._
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+import scala.jdk.CollectionConverters._
 import xyz.hyperreal.{backslash, markdown, yaml}
 import xyz.hyperreal.markdown.{HeadingAST, Markdown, SeqAST, Util}
 import xyz.hyperreal.backslash.{Command, Parser, Renderer}
@@ -245,13 +245,13 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
   def toc( headings: Seq[Heading] ): List[Map[String, Any]] =
     headings map {
       case Heading( Some(path), heading, id, level, sublinks ) =>
-        Map( "path" -> path, "heading" -> heading, "id" -> id, "level" -> level, "sublinks" -> toc(sublinks) )
+        Map( "path" -> path, "heading" -> heading, "id" -> id, "level" -> level, "sublinks" -> toc(sublinks.toSeq) )
       case Heading( None, heading, id, level, sublinks ) =>
-        Map( "heading" -> heading, "id" -> id, "level" -> level, "sublinks" -> toc(sublinks) )
+        Map( "heading" -> heading, "id" -> id, "level" -> level, "sublinks" -> toc(sublinks.toSeq) )
     } toList
 
   def writeSite: Unit = {
-    val sitetoc = toc( sitebuf.subheadings )
+    val sitetoc = toc( sitebuf.subheadings.toSeq )
     val headingtoc = headingtocMap toMap
 
     create( dstnorm )
@@ -352,14 +352,14 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
   case class Heading( path: Option[String], heading: String, id: String, level: Int, subheadings: ListBuffer[Heading] )
 
   val sitebuf = Heading( None, "", "", -1, new ListBuffer[Heading] )
-  val sitetrail: ArrayStack[Heading] = ArrayStack( sitebuf )
+  val sitetrail: mutable.Stack[Heading] = mutable.Stack( sitebuf )
   val firstHeading = new mutable.HashSet[String]
 
   def headings( path: Option[String], doc: markdown.AST, front: Map[String, Any] ) = {
     val pagebuf = Heading( path, "", "", -1, new ListBuffer[Heading] )
-    val pagetrail: ArrayStack[Heading] = ArrayStack( pagebuf )
+    val pagetrail: mutable.Stack[Heading] = mutable.Stack( pagebuf )
 
-    def addNodeHeading( level: Int, text: String, id: String, trail: ArrayStack[Heading], tocmin: Int, tocmax: Int ): Unit =
+    def addNodeHeading( level: Int, text: String, id: String, trail: mutable.Stack[Heading], tocmin: Int, tocmax: Int ): Unit =
       if (tocmin <= level && level <= tocmax)
         addHeading( level, path, text, id, trail )
 
@@ -394,7 +394,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     pagebuf.subheadings
   }
 
-  def addHeading( level: Int, path: Option[String], text: String, id: String, trail: ArrayStack[Heading] ): Unit = {
+  def addHeading( level: Int, path: Option[String], text: String, id: String, trail: mutable.Stack[Heading] ): Unit = {
     if (level > trail.head.level) {
       val sub = Heading( path, text, id, level, new ListBuffer[Heading] )
 
@@ -425,7 +425,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
   def transformMarkdown( src: String, pagepath: String, front: Map[String, Any] ) = {
     val doc = Markdown( src )
 
-    (Util.html( doc, 2, codeblock ), Some( headings(Some(pagepath), doc, front) ))
+    (Util.html( doc, 2, codeblock ), Some( headings(Some(pagepath), doc, front).toSeq ))
   }
 
   def transformHTML( src: String, pagepath: String, front: Map[String, Any] ) = (src, None)
@@ -442,9 +442,9 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
     info( s"reading source: $f" )
 
     val filename = withoutExtension( f.getFileName )
-    val s = io.Source.fromFile( f.toFile ).mkString
+    val text = io.Source.fromFile( f.toFile )
+    val lines = text.getLines
     val (front, src) = {
-      val lines = s.lines
 
       if (lines.hasNext && lines.next == "---") {
         (yaml.read( lines takeWhile( _ != "---" ) mkString "\n" ).head match {
@@ -452,7 +452,7 @@ class Builder( src: Path, dst: Path, verbose: Boolean = false, clean: Boolean = 
           case _ => problem( s"expected an object as front matter: $f" )
         }, lines mkString "\n")
       } else
-        (Map[String, Any](), s)
+        (Map[String, Any](), text.mkString)
     }
 
     val dir = sources relativize f.getParent
